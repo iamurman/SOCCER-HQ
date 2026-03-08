@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Justin — Soccer HQ</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #080808; color: #e0e0e0; font-family: 'Courier New', monospace; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0d0d0d; }
+    ::-webkit-scrollbar-thumb { background: #222; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.3); }
+    select option { background: #0d0d0d; color: #aaa; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useEffect } = React;
+
+const SUPABASE_URL = "https://mmmrxjzpdmvurwevlsuq.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tbXJ4anpwZG12dXJ3ZXZsc3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NTYwNzcsImV4cCI6MjA4ODUzMjA3N30.bH4gbtN-q65kgHr2xbkmCrBMdn6L055e7MXvY_H1s6Q";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function hashPassword(password) {
+  const msgBuffer = new TextEncoder().encode(password + "soccerhq_salt_2024");
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+const phases = [
+  { id: 0, title: "SPRING BREAK", subtitle: "Technical Foundation", weeks: "Week 1 — Travel Week", color: "#00BFFF",
+    focus: "No field. No gym. No partner. Pure ball mechanics — this week builds the technical foundation everything else sits on.",
+    gym: [{ day: "Every Day", sessions: [{ name: "Bodyweight Conditioning", details: "Jump squats 4×15, lateral bounds 3×10 each side, explosive lunges 3×10, single leg calf raises 3×20. No equipment." }, { name: "Core", details: "Plank 3×45s, Dead Bug 3×10, V-sits 3×15, hollow body hold 3×30s. Every night before bed." }] }],
+    field: [{ name: "Ball Striking Mechanics (30 min)", details: "Inside foot: lock ankle, toe out, strike center. Driven shot: approach at angle, plant foot beside ball, laces through center. Curl: strike inside-bottom quarter with laces for bend. Chip: stab underneath with stiff ankle. 20 reps each technique daily." }, { name: "Ball Spin Control (20 min)", details: "Topspin: strike above center → ball dips. Backspin: strike below center → ball floats. Sidespin: strike left or right of center → ball curves. Practice each deliberately, feel the difference." }, { name: "Ball Mastery Solo (20 min)", details: "Inside rolls, outside rolls, toe taps, V-pulls, scissors, step-overs — both feet. Log juggling record every day and beat it." }, { name: "First Touch Wall Work (20 min)", details: "Throw against wall, control dead in one touch — inside, outside, chest, thigh, laces. Both feet. 100 reps each surface." }],
+    mental: "Watch Pirlo, Iniesta, and Xavi on YouTube. Search 'Pirlo through balls compilation' and 'Xavi passing masterclass.' Watch their body position before they receive — see how they already know where it's going before it arrives." },
+  { id: 1, title: "PHASE 1", subtitle: "Foundation", weeks: "Weeks 2–4", color: "#00FF87",
+    focus: "Build base fitness, ball comfort, and fundamental mechanics solo. Every drill works alone — wall, cones, open space.",
+    gym: [{ day: "Mon / Wed / Fri", sessions: [{ name: "Explosive Lower Body", details: "Squats 4×8, Romanian Deadlifts 3×10, Box Jumps 4×6, Lateral Bounds 3×10 each side" }, { name: "Core Stability", details: "Plank 3×45s, Dead Bug 3×10, Pallof Press 3×12, Copenhagen Plank 3×20s" }] }, { day: "Tue / Thu", sessions: [{ name: "Conditioning", details: "20 min tempo run at 70% effort — building your aerobic base for 90 minutes on a field." }] }],
+    field: [{ name: "Wall Passing — Solo (25 min)", details: "200 reps each foot. Lock ankle, follow through to target. Start 3m away, move back as accuracy builds." }, { name: "Shooting at a Target — Solo (25 min)", details: "Set up a target on a wall or fence. Alternate feet every 5 shots. Strike through center with laces. Log makes vs attempts." }, { name: "First Touch Control — Solo (20 min)", details: "Throw ball against wall, kill it dead in one touch. Inside, outside, chest, thigh, laces. Both feet. 100 reps each surface." }],
+    mental: "Watch 1 game per week. Don't watch the ball. Watch one midfielder the entire game. Track their movement OFF the ball." },
+  { id: 2, title: "PHASE 2", subtitle: "Sharpness", weeks: "Weeks 5–7", color: "#FFD700",
+    focus: "Increase intensity. Combine skills. Add fatigue to every drill. Solo work only.",
+    gym: [{ day: "Mon / Wed / Fri", sessions: [{ name: "Power & Speed", details: "Bulgarian Split Squats 4×8, Single Leg RDL 3×10, Sprint Intervals 8×30m, Lateral Shuffle to Sprint 6×" }, { name: "Core + Rotational Power", details: "Rotational Med Ball Slam 4×8, Cable Woodchops 3×12, L-Sit Hold 3×20s" }] }, { day: "Tue / Thu", sessions: [{ name: "Interval Conditioning", details: "8×200m at 85% effort, 90s rest between. Builds specific fitness for repeated sprints in a game." }] }],
+    field: [{ name: "Sprint → Shoot Sequence (25 min)", details: "Sprint 30m, arrive at ball, shoot at target immediately. No rest between sprint and shot. 10 reps each foot." }, { name: "Dribble Course (20 min)", details: "6 cones, 1m apart. Dribble through with inside/outside touches, both feet. Add shot at end. Time yourself and beat it." }, { name: "Curved Shot Practice (20 min)", details: "Strike inside-bottom quarter with laces for curl. Aim at target 15–20m away. 20 reps each foot daily." }],
+    mental: "Study defensive structures. Search 'how to break a 4-4-2' and 'midfielder positioning between the lines.'" },
+  { id: 3, title: "PHASE 3", subtitle: "Domination", weeks: "Weeks 8–11", color: "#FF4444",
+    focus: "Game speed. Reading space. Becoming the most dangerous player. Get into pickup games.",
+    gym: [{ day: "Mon / Wed", sessions: [{ name: "Maintain Strength", details: "Squats 3×5 heavy, RDL 3×6, Box Jumps 3×5. Maintaining now — field work is priority." }] }, { day: "Tue / Thu / Sat", sessions: [{ name: "Game Condition Fitness", details: "4×4 min at 90% intensity, 2 min rest. Mirrors actual game bursts." }] }],
+    field: [{ name: "Decision Speed (25 min)", details: "Cone course, multiple exit options. Decide direction before you arrive. Two touches max. One touch when possible." }, { name: "Turn and Strike (20 min)", details: "Ball against wall, receive with back to wall, turn and shoot. Cruyff turn, inside hook, drop shoulder. Pick 2 and own them." }, { name: "Pickup Games", details: "Find games. Compete. Read the field before the ball comes. Play the pass before you receive it in your mind." }],
+    mental: "5 minutes visualization before every session. See yourself on the TSA field. Read the play before it happens. Be the most dangerous person without needing to score." },
+];
+
+const bibleChapters = [
+  { id: "ball", title: "The Ball", icon: "⚽", subtitle: "Physics, Spin & Striking", sections: [
+    { title: "The Magnus Effect — Why The Ball Curves", content: "Every curved ball in soccer is the Magnus Effect in action. When a spinning ball moves through air, its rotation drags air around it. On one side airflow speeds up, on the other it slows down. The pressure difference pushes the ball toward the low-pressure side.\n\nThe key rule: a ball curves in the direction it's spinning.\n— Clockwise spin → curves right\n— Counterclockwise spin → curves left\n— Topspin (forward rotation) → dips down\n— Backspin (backward rotation) → floats, travels farther\n\nThe slower the ball travels, the more it curves. Speed reduces the effect." },
+    { title: "The Knuckleball — No Spin", content: "Strike the ball with minimal spin and it becomes unpredictable. Without spin, airflow changes constantly as the panel seams rotate. The ball flutters, dips, and moves laterally without warning.\n\nHow to do it: Strike through the dead center of the ball with your laces, follow through stiff and straight. Minimal ankle snap.\n\nUse case: Long range free kicks, shots from outside the box. Ronaldo and Pirlo built careers on this." },
+    { title: "Topspin — The Dipping Shot", content: "Topspin makes the ball dip faster than gravity alone.\n\nHow to create topspin:\n— Approach at a slight angle (30 degrees)\n— Plant foot slightly ahead of and beside the ball\n— Strike slightly above center with your laces\n— Keep your body over the ball — lean forward\n— The follow-through goes DOWN, not forward\n\nCommon mistake: Leaning back causes backspin and a ballooning shot. Get your body over the ball." },
+    { title: "Backspin — The Chip & Float", content: "Backspin creates lift and a floating effect. Essential for chips over a goalkeeper and lofted through balls.\n\nHow to create backspin:\n— Stab underneath the ball with a stiff ankle\n— Shorter, sharper contact — don't follow through\n— Strike the bottom quarter of the ball\n\nThe chip: Same but more exaggerated. Knife under the ball, quick flick. Used to lob a rushing goalkeeper.\n\nNote: Backspin reduces forward speed. Use for precision, not power." },
+    { title: "Sidespin — The Curl", content: "Sidespin bends free kicks around walls and curls crosses into dangerous areas.\n\nFor a right-footed player:\n— Strike the LEFT side with inside of foot → curves left to right (inswinging)\n— Strike the RIGHT side with outside of foot → curves right to left (outswinging)\n\nHow to curl with inside of foot:\n— Approach from the left\n— Plant foot pointing at target\n— Strike the inside-left quarter of the ball\n— Follow through across your body\n\nMore off-center = more curl but less power. Find the balance." },
+    { title: "The Driven Shot — Power & Accuracy", content: "The bread and butter shot.\n\nMechanics:\n1. Approach at 30–45 degree angle\n2. Plant foot beside ball, toes pointing at target\n3. Lock your ankle — foot pointed down, firm\n4. Strike through the CENTER with laces\n5. Body OVER the ball — don't lean back\n6. Follow through toward target — leg swings high\n\nPower comes from hip rotation and knee snap. Your leg is the whip. Your locked ankle is the tip." },
+    { title: "The Inside Pass — Accuracy First", content: "The foundation of everything.\n\nMechanics:\n1. Point standing foot at the target\n2. Open kicking foot out — toe pointed sideways\n3. Lock your ankle\n4. Strike through the CENTER with the flat inside surface\n5. Follow through toward the target\n\nWall drill: 200 reps each foot daily. Lock ankle, follow through, move target back as accuracy builds." },
+  ]},
+  { id: "formations", title: "Formations", icon: "📋", subtitle: "Shapes, Systems & How To Break Them", sections: [
+    { title: "How To Read A Formation", content: "Formations are listed back to front, goalkeeper excluded.\n4-3-3 = 4 defenders, 3 midfielders, 3 forwards.\n\nBut formations are starting shapes. In possession a 4-3-3 becomes a 3-5-2. Out of possession a 4-2-3-1 becomes a 4-4-2.\n\nNumbers and roles:\n— #4, #5: Center backs\n— #2, #3: Fullbacks\n— #6: Defensive midfielder (holds, screens)\n— #8: Box-to-box midfielder\n— #10: Attacking midfielder / playmaker\n— #7, #11: Wingers\n— #9: Striker" },
+    { title: "4-4-2 — The Classic", content: "Four defenders. Four midfielders. Two strikers.\n\nStrengths: Simple structure, two strikers, solid defensive shape.\n\nWeaknesses: Outnumbered in midfield against 3-man setups. Flat midfield struggles to shift quickly.\n\nHow to attack it as a midfielder:\n— Exploit the space BETWEEN their midfield and defensive line\n— Receive there and you have time\n— Overload one side then switch quickly\n— Thread through balls between the central mids" },
+    { title: "4-3-3 — Possession & Press", content: "Four defenders. Three midfielders. Three forwards. Barcelona's formation.\n\nStrengths: Three forwards press high, triangles everywhere, wide forwards pin fullbacks.\n\nWeaknesses: Wide forwards must track back or you're exposed. Requires enormous fitness.\n\nHow to attack it:\n— Attack the space BEHIND pressing forwards\n— Switch play quickly — wide areas open with fast movement\n— Striker's movement pulls center backs, creating gaps for midfield runners" },
+    { title: "4-2-3-1 — The Dominant Modern Formation", content: "Four defenders. Two defensive midfielders (double pivot). Three attacking mids. One striker.\n\nStrengths: Double pivot gives stability AND possession control. The #10 between the lines is extremely hard to defend. Flexible.\n\nWeaknesses: Lone striker isolated. Fullbacks often exposed.\n\nHow to attack it:\n— Flanks are vulnerable\n— A diamond midfield suffocates the double pivot\n— Quick counters before defensive shape reorganizes" },
+    { title: "3-5-2 — Five In Midfield", content: "Three center backs. Two wing-backs. Three central midfielders. Two strikers.\n\nStrengths: Total midfield control, two strikers, extra defensive coverage.\n\nWeaknesses: Wing-backs cover enormous ground. Three center-backs overloaded by width.\n\nHow to attack it:\n— Push wing-backs back — remove their attacking contribution\n— Hit behind wing-backs with fast runs when they push forward\n— Play wide — stretch the three center-backs" },
+    { title: "The Low Block — How To Break It", content: "Some teams just park. Nine or ten men behind the ball.\n\n1. Patience. They want you to rush.\n2. Move the ball quickly — short combinations force their shape to shift.\n3. Switch play FAST. Forces the entire block to move.\n4. Get wide and cross — numbers in the box can break it.\n5. Midfield runners arriving late are hard to track.\n6. Through ball into channels between last defender and the 18.\n\nWhat doesn't work: Individual dribbling into a packed defense." },
+  ]},
+  { id: "defending", title: "Defending", icon: "🛡️", subtitle: "Reading Players, 1v1, Pressure", sections: [
+    { title: "The Fundamentals Of Individual Defense", content: "Defense starts before the attacker gets the ball.\n\nCore principles:\n1. Be goal-side. Always position between attacker and goal.\n2. Delay, don't dive. Buy time for teammates.\n3. Stay on your feet. Committed tackles that miss are gifts.\n4. Force a direction. Channel toward sideline or weak foot.\n5. Watch the ball, not the feet. Feints happen with the body. The ball tells the truth.\n\nThe jockeying position: Side-on stance, weight on back foot, low center of gravity." },
+    { title: "Defending Fast Players", content: "Fast attackers need space to run into. Eliminate that space.\n\nHow to defend pace:\n1. Get tight EARLY — before they have the ball.\n2. Force them wide. The sideline is your teammate.\n3. Don't turn and chase. Focus on preventing the moment.\n4. Angle your run so they must go wide.\n5. Be physical early — fast players hate physicality.\n\nKey shift: You're not trying to win the ball. You're making them predictable." },
+    { title: "Defending Technically Skilled Players", content: "A technically elite dribbler slows down and waits for you to commit.\n\nGolden rule: Do NOT lunge. They're waiting for it.\n\nHow to defend skill:\n1. Patience. Stand them up. Make them make the first move.\n2. Watch the ball, not the body.\n3. Force them onto their weak foot.\n4. Shrink their space — tight enough they can't turn.\n5. Tackle only when they take a heavy touch. Then commit fully." },
+    { title: "Defending Physical Players", content: "Strong attackers try to back into you and use their body as a shield.\n\nPrinciples:\n1. Don't engage their back. Stay to the side.\n2. Arms-length positioning: Too close and they spin you. Too far and they turn.\n3. Be first to the ball.\n4. Use your body legally — shoulder to shoulder.\n5. Force wide. Physical strikers are most dangerous centrally." },
+    { title: "The Art Of Pressing", content: "Pressing isn't chasing the ball. Uncoordinated pressing creates space.\n\nPress when:\n— Opponent receives with back to goal\n— They take a heavy first touch\n— Ball goes to a weak-footed player\n\nHow to press effectively:\n1. Know where you're forcing the ball BEFORE you press\n2. Cut off the easy pass\n3. Teammates must press in coordination\n4. Don't overcommit\n\nHigh press wins the ball high but is exhausting. Mid press is more sustainable." },
+  ]},
+  { id: "midfield", title: "The Midfielder", icon: "🧠", subtitle: "Positioning, Vision & The Isagi Principles", sections: [
+    { title: "What Makes A Midfielder Elite", content: "The average player has direct possession for only 1–3 minutes in 90.\n\nWhat separates elite midfielders:\n1. Scanning frequency — Xavi scanned 0.83 times per second. Elite: 6–8 times in 10 seconds.\n2. Pre-decisions — By the time the ball arrives, the decision is already made.\n3. Body orientation — Always receive with an open body. 'Play the way you face.'\n4. Movement OFF the ball — Where you position without it determines what balls you get.\n5. Tempo control — Knowing when to play fast and when to slow down." },
+    { title: "Scanning — The Skill That Separates Everyone", content: "Scanning is checking your shoulders to gather information BEFORE the ball arrives.\n\nHow to build the habit:\n— Force yourself to check both shoulders before every receive\n— Rule: never receive without at least one shoulder check\n— Target: scan every 3 seconds minimum\n\nWhat to look for:\n— Where is the nearest pressure?\n— Which teammate is open?\n— Where is the space?\n— What is the defensive shape?\n\nYou're taking a photograph of the field. File it instantly. Act on it." },
+    { title: "Positioning Between The Lines", content: "The most dangerous position: the space between opponent's midfield and defensive line.\n\nWhy it's dangerous:\n— Midfielders can't press without leaving space behind\n— Defenders can't step out without exposing their line\n— You're facing goal with time and space\n\nHow to get there:\n— Move away from the ball to create angles\n— Time your run to arrive AS the ball is played\n\nThe half-space: Between center and wing. Where Iniesta, Modric, De Bruyne operate." },
+    { title: "The Isagi Principles — Spatial Dominance", content: "Isagi's weapon isn't skill or pace — it's meta-vision.\n\n1. Before the ball arrives: where is the SPACE? Not the ball. The space.\n\n2. Predict where space will open: Fullback pushes forward → space opens behind. Read movement to predict the gap, then move there BEFORE it opens.\n\n3. Exploit the transition moment: The 3–5 seconds after possession changes. Strike in this window.\n\n4. Create space for others: Your run doesn't need to end in receiving. Dragging a defender away is a successful action.\n\n5. The chain calculation: Calculate two passes ahead before every touch." },
+    { title: "First Touch — The Foundation Of Everything", content: "Your first touch tells everyone on the field who you are.\n\nTypes:\n— Cushion touch: Relax the surface to kill the ball's pace.\n— Directional touch: Redirect with inside or outside as it arrives.\n— First-time pass: The touch IS the pass. Requires pre-scanning.\n\nTraining: Wall work. Control it dead every time. Both feet. 100 reps each surface.\n\nThe test: After receiving, can you immediately look up? Still looking down = touch wasn't good enough." },
+    { title: "Tempo — Controlling The Game's Pace", content: "Elite midfielders SET the rhythm.\n\nPlay FAST when:\n— Transition moments\n— Defenders are disorganized\n— A runner is making a timed run\n\nSlow DOWN when:\n— Team needs to reorganize shape\n— No forward option available\n— Pressing is coming\n\nMost common amateur mistake: Playing fast all the time. Top teams play slow to go fast.\n\nYou are the tempo dial. Own it." },
+  ]},
+  { id: "mental", title: "Mental Game", icon: "🔥", subtitle: "Psychology, Pressure & Domination", sections: [
+    { title: "The Psychology Of Competition", content: "Soccer is played twice — once in the body, once in the mind.\n\nWhat separates competitive players:\n— Composure under pressure: Execute technique when heart rate is 160.\n— Short memory: Forget bad touches instantly.\n— Reading opponents: Frustrated? Apply more pressure. Confident? Disrupt their rhythm.\n\nThe composure principle: Your technique only holds under pressure to the level you've practiced it under pressure. Train at speed, under fatigue, with consequences." },
+    { title: "Imposing Yourself Mentally", content: "It's not trash talk. It's actions that make opponents feel the game is already decided.\n\n1. Dominate the first five minutes: Win your first header, tackle, and pass.\n2. Visible composure: When you're calm and they're not, it communicates power.\n3. Physicality in legal spaces: Use it early.\n4. Punish every mistake instantly: Transition immediately when they give it away.\n5. Be unpredictable: Change your patterns. Make them feel like they can't read you." },
+    { title: "Visualization — Training The Brain", content: "Your brain cannot fully distinguish between a vividly imagined action and a real one.\n\nHow to do it properly:\n1. Be specific. Visualize receiving under pressure, taking a directional touch, threading a through ball.\n2. All senses. See the field, hear the crowd, feel the ball.\n3. Include adversity. Visualize a bad touch — then recovering.\n4. Pre-match: 5–10 minutes before every game or session.\n\nFive minutes every night before sleep. It costs nothing. Over months, it compounds." },
+    { title: "The Transition Mindset", content: "The most dangerous moment in soccer: the 3–5 seconds after possession changes.\n\nWhen you WIN the ball: Look forward immediately. Attack before the defense organizes.\n\nWhen you LOSE the ball: Counter-press immediately. Don't sulk. The ball is closest to your team in the moment just after losing it.\n\nYour profile — lean, fast, explosive — is perfectly suited to transition moments. This is where you are most dangerous." },
+    { title: "Handling Mistakes & Staying In The Game", content: "The most consequential skill in soccer isn't technical. It's moving on instantly from errors.\n\nThe reset process:\n1. Accept: It happened. That's done.\n2. Analyze: Decision error or execution error? File it for later.\n3. Redirect: Where do I need to be RIGHT NOW?\n4. Go: Move. Don't stand still processing.\n\nThe whole process takes 2 seconds. Long memory is a liability in competition." },
+  ]},
+  { id: "iq", title: "Soccer IQ", icon: "📡", subtitle: "Reading The Game, Space & Time", sections: [
+    { title: "Space — The Real Currency Of Soccer", content: "The ball is secondary. Space is the game.\n\nTypes of space:\n— Behind the defensive line: Most dangerous. Through ball here often leads to goal.\n— Between the lines: Where midfielders operate.\n— Wide space: Stretches defense, opens central areas.\n— Space created by movement: Running without the ball drags defenders.\n\nThe central question before every action: Where is the space, and how do I attack it or create it?" },
+    { title: "Reading Defensive Shape", content: "Understanding how the opposition defends tells you exactly where to attack.\n\nHigh defensive line: Vulnerability — space in behind for pace.\nDeep defensive line: Vulnerability — space in front of defense.\nZonal defense: Attack by creating overloads.\nMan marking: Drags defenders out of position with intelligent movement.\n\nBefore every game: Watch how they defend for 10 minutes. Where do they give space? Which player is weakest?" },
+    { title: "The Third Man Run", content: "Player A passes to Player B. Player B is marked. But A's pass was a TRIGGER — it signals Player C (the third man) to make a run into space.\n\nThe defender marking B watches the ball. The defender covering C's zone tracks the ball. Neither watches C's run until it's too late.\n\nHow to use it:\n1. Recognize when a teammate is about to play a pass\n2. Time your run so you arrive as the ball reaches the second player\n3. You receive in full stride with space ahead\n\nThis is Isagi's chain calculation in real soccer." },
+    { title: "Overloads & Numerical Superiority", content: "Numerical superiority = more of your players than theirs in a specific area.\n\n2v1 anywhere = the defender cannot stop both. One of you is always free.\n\nHow midfielders create overloads:\n— Positional rotation: Move into areas with fewer defenders\n— Overlapping runs: Give and go. Pass, then run.\n— Third man combinations\n\nThe best midfielders manufacture overloads. Don't wait for them." },
+    { title: "Transition — The Game Within The Game", content: "Modern soccer is increasingly about transitions.\n\nOffensive transition (just won the ball):\n— Look forward immediately\n— Attack before defense reorganizes\n— Exploit the 5-second window\n\nDefensive transition (just lost the ball):\n— Counter-press immediately\n— Sprint to defensive position\n— Delay their attack\n\nThe gegenpressing principle: Winning the ball back within 5 seconds is statistically the most dangerous way to create a goal-scoring opportunity. Your profile is perfectly suited to this." },
+  ]},
+];
+
+const navItems = [
+  { id: "dashboard", label: "Dashboard", icon: "◈" },
+  { id: "training", label: "Training Plan", icon: "◉" },
+  { id: "bible", label: "Soccer Bible", icon: "◎" },
+  { id: "journal", label: "Match Journal", icon: "◇" },
+  { id: "tracker", label: "Progress Log", icon: "△" },
+  { id: "goals", label: "Goals Board", icon: "✦" },
+  { id: "weakfoot", label: "Weak Foot", icon: "◐" },
+  { id: "vidnotes", label: "Video Notes", icon: "▷" },
+];
+
+function AuthScreen({ onLogin }) {
+  const [mode, setMode] = useState("login");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const inputStyle = { width: "100%", background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "12px 14px", color: "#ccc", fontFamily: "'Courier New', monospace", fontSize: 13, outline: "none", marginBottom: 12 };
+
+  const handleSubmit = async () => {
+    if (!username.trim() || !password.trim()) { setError("Fill in both fields."); return; }
+    setLoading(true); setError("");
+    const hash = await hashPassword(password);
+    if (mode === "register") {
+      const { error: err } = await sb.from("users").insert([{ username: username.trim().toLowerCase(), password_hash: hash }]);
+      if (err) { setError(err.code === "23505" ? "Username already taken." : "Error creating account."); setLoading(false); return; }
+      const { data } = await sb.from("users").select("id").eq("username", username.trim().toLowerCase()).single();
+      await sb.from("goals").insert([
+        { user_id: data.id, text: "Win the TSA League", category: "short", done: false },
+        { user_id: data.id, text: "Comfortable with both feet", category: "short", done: false },
+        { user_id: data.id, text: "Play in a semi-pro league", category: "medium", done: false },
+        { user_id: data.id, text: "Become the most dangerous midfielder in every game I play", category: "long", done: false },
+      ]);
+      await sb.from("juggling_record").insert([{ user_id: data.id, record: 0 }]);
+      onLogin(data.id, username.trim().toLowerCase());
+    } else {
+      const { data, error: err } = await sb.from("users").select("id, password_hash").eq("username", username.trim().toLowerCase()).single();
+      if (err || !data) { setError("Username not found."); setLoading(false); return; }
+      if (data.password_hash !== hash) { setError("Wrong password."); setLoading(false); return; }
+      onLogin(data.id, username.trim().toLowerCase());
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 360 }}>
+        <div style={{ marginBottom: 40, textAlign: "center" }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⚽</div>
+          <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 6 }}>PERSONAL HQ</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: "#fff" }}>SOCCER <span style={{ color: "#00FF87" }}>HQ</span></div>
+          <div style={{ fontSize: 11, color: "#333", marginTop: 8 }}>The flame is lit. Guard it.</div>
+        </div>
+        <div style={{ display: "flex", marginBottom: 24, borderBottom: "1px solid #141414" }}>
+          {["login", "register"].map(m => (
+            <button key={m} onClick={() => { setMode(m); setError(""); }} style={{ flex: 1, padding: "10px", background: "transparent", border: "none", borderBottom: mode === m ? "2px solid #00FF87" : "2px solid transparent", color: mode === m ? "#00FF87" : "#333", cursor: "pointer", fontSize: 10, letterSpacing: 3, fontFamily: "'Courier New', monospace", textTransform: "uppercase", marginBottom: -1 }}>{m}</button>
+          ))}
+        </div>
+        <input placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} style={inputStyle} />
+        <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} style={inputStyle} />
+        {error && <div style={{ fontSize: 11, color: "#FF4444", marginBottom: 12 }}>{error}</div>}
+        <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", background: loading ? "#0d0d0d" : "#00FF87", color: loading ? "#333" : "#000", border: "none", padding: "12px", fontSize: 11, letterSpacing: 3, cursor: loading ? "default" : "pointer", fontFamily: "'Courier New', monospace" }}>
+          {loading ? "..." : mode === "login" ? "ENTER" : "CREATE ACCOUNT"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [userId, setUserId] = useState(null);
+  const [username, setUsername] = useState("");
+  const [page, setPage] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  if (!userId) return <AuthScreen onLogin={(id, u) => { setUserId(id); setUsername(u); }} />;
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "#080808" }}>
+      <div style={{ width: sidebarOpen ? 200 : 48, background: "#0a0a0a", borderRight: "1px solid #141414", flexShrink: 0, transition: "width 0.2s", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: sidebarOpen ? "20px 16px 12px" : "20px 12px 12px", borderBottom: "1px solid #141414" }}>
+          <div onClick={() => setSidebarOpen(!sidebarOpen)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ color: "#00FF87", fontSize: 18, flexShrink: 0 }}>⚽</span>
+            {sidebarOpen && <span style={{ fontSize: 11, letterSpacing: 3, color: "#00FF87", whiteSpace: "nowrap" }}>SOCCER HQ</span>}
+          </div>
+        </div>
+        <div style={{ flex: 1, paddingTop: 8 }}>
+          {navItems.map(item => (
+            <div key={item.id} onClick={() => setPage(item.id)} style={{ padding: sidebarOpen ? "10px 16px" : "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, background: page === item.id ? "#111" : "transparent", borderLeft: page === item.id ? "2px solid #00FF87" : "2px solid transparent" }}
+              onMouseEnter={e => { if (page !== item.id) e.currentTarget.style.background = "#0d0d0d"; }}
+              onMouseLeave={e => { if (page !== item.id) e.currentTarget.style.background = "transparent"; }}>
+              <span style={{ fontSize: 14, flexShrink: 0, color: page === item.id ? "#00FF87" : "#444" }}>{item.icon}</span>
+              {sidebarOpen && <span style={{ fontSize: 11, letterSpacing: 1, color: page === item.id ? "#ccc" : "#444", whiteSpace: "nowrap" }}>{item.label}</span>}
+            </div>
+          ))}
+        </div>
+        {sidebarOpen && (
+          <div style={{ padding: "12px 16px", borderTop: "1px solid #141414" }}>
+            <div style={{ fontSize: 9, color: "#333", letterSpacing: 2, marginBottom: 6 }}>{username.toUpperCase()}</div>
+            <div onClick={() => { setUserId(null); setUsername(""); setPage("dashboard"); }} style={{ fontSize: 9, color: "#333", letterSpacing: 2, cursor: "pointer" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#FF4444"}
+              onMouseLeave={e => e.currentTarget.style.color = "#333"}>LOGOUT</div>
+          </div>
+        )}
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: "100vh" }}>
+        {page === "dashboard" && <Dashboard userId={userId} setPage={setPage} />}
+        {page === "training" && <TrainingPlan />}
+        {page === "bible" && <SoccerBible />}
+        {page === "journal" && <MatchJournal userId={userId} />}
+        {page === "tracker" && <ProgressLog userId={userId} />}
+        {page === "goals" && <GoalsBoard userId={userId} />}
+        {page === "weakfoot" && <WeakFoot userId={userId} />}
+        {page === "vidnotes" && <VideoNotes userId={userId} />}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ userId, setPage }) {
+  const [stats, setStats] = useState({ sessions: 0, juggling: 0, goals: "0/0", weakFoot: 0 });
+  const [recentLog, setRecentLog] = useState(null);
+  useEffect(() => {
+    async function load() {
+      const [logs, jr, goals, wf] = await Promise.all([
+        sb.from("progress_logs").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+        sb.from("juggling_record").select("record").eq("user_id", userId).single(),
+        sb.from("goals").select("done").eq("user_id", userId),
+        sb.from("weak_foot_log").select("id").eq("user_id", userId),
+      ]);
+      const done = (goals.data || []).filter(g => g.done).length;
+      setStats({ sessions: (logs.data || []).length, juggling: jr.data?.record || 0, goals: `${done}/${(goals.data || []).length}`, weakFoot: (wf.data || []).length });
+      if (logs.data && logs.data.length > 0) setRecentLog(logs.data[0]);
+    }
+    load();
+  }, [userId]);
+  const cards = [
+    { label: "Training Sessions", value: stats.sessions, sub: "logged total", page: "tracker", color: "#00FF87" },
+    { label: "Juggling Record", value: stats.juggling, sub: "touches", page: "weakfoot", color: "#00BFFF" },
+    { label: "Goals Completed", value: stats.goals, sub: "set goals", page: "goals", color: "#FFD700" },
+    { label: "Weak Foot Sessions", value: stats.weakFoot, sub: "sessions", page: "weakfoot", color: "#FF4444" },
+  ];
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>WELCOME BACK</div>
+      <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", marginBottom: 4 }}>JUSTIN'S <span style={{ color: "#00FF87" }}>HQ</span></div>
+      <div style={{ fontSize: 12, color: "#444", marginBottom: 32 }}>The flame is lit. Guard it.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 32 }}>
+        {cards.map((c, i) => (
+          <div key={i} onClick={() => setPage(c.page)} style={{ padding: "20px", background: "#0d0d0d", border: `1px solid ${c.color}22`, cursor: "pointer" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#111"}
+            onMouseLeave={e => e.currentTarget.style.background = "#0d0d0d"}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+      {recentLog && (
+        <div style={{ marginBottom: 24, padding: "16px", background: "#0d0d0d", borderLeft: "3px solid #00FF87" }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 8 }}>LAST SESSION</div>
+          <div style={{ fontSize: 12, color: "#aaa" }}>{recentLog.date} — {recentLog.type}</div>
+          {recentLog.notes && <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{recentLog.notes}</div>}
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        {[{ label: "Training Plan", desc: "Your 11-week protocol", page: "training", icon: "◉" }, { label: "Soccer Bible", desc: "Your reference library", page: "bible", icon: "◎" }, { label: "Match Journal", desc: "Log your games", page: "journal", icon: "◇" }, { label: "Video Notes", desc: "Film study notes", page: "vidnotes", icon: "▷" }].map((item, i) => (
+          <div key={i} onClick={() => setPage(item.page)} style={{ padding: "16px", background: "#0d0d0d", border: "1px solid #141414", cursor: "pointer", display: "flex", gap: 12 }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = "#222"}
+            onMouseLeave={e => e.currentTarget.style.borderColor = "#141414"}>
+            <span style={{ color: "#00FF87", fontSize: 16 }}>{item.icon}</span>
+            <div><div style={{ fontSize: 12, color: "#ccc" }}>{item.label}</div><div style={{ fontSize: 10, color: "#444", marginTop: 2 }}>{item.desc}</div></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrainingPlan() {
+  const [activePhase, setActivePhase] = useState(0);
+  const [activeTab, setActiveTab] = useState("field");
+  const phase = phases[activePhase];
+  const dailyRoom = ["100 inside foot touches — left foot", "100 inside foot touches — right foot", "50 outside foot rolls — each foot", "Ball juggling — max reps, log your record", "5 min visualization before sleep"];
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>TSA DOMINATION PROTOCOL</div>
+      <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", marginBottom: 24 }}>10-WEEK <span style={{ color: "#00FF87" }}>TRAINING PLAN</span></div>
+      <div style={{ display: "flex", borderBottom: "1px solid #141414", marginBottom: 24, overflowX: "auto" }}>
+        {phases.map((p, i) => (
+          <button key={i} onClick={() => { setActivePhase(i); setActiveTab("field"); }} style={{ padding: "12px 16px", background: "transparent", border: "none", borderBottom: activePhase === i ? `2px solid ${p.color}` : "2px solid transparent", color: activePhase === i ? p.color : "#444", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "'Courier New', monospace", whiteSpace: "nowrap", marginBottom: -1 }}>
+            {p.title}<br /><span style={{ fontSize: 9, opacity: 0.7 }}>{p.weeks}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ padding: "16px", borderLeft: `3px solid ${phase.color}`, background: `${phase.color}08`, marginBottom: 20 }}>
+        <div style={{ fontSize: 10, letterSpacing: 3, color: phase.color, marginBottom: 6 }}>{phase.subtitle.toUpperCase()}</div>
+        <div style={{ fontSize: 13, color: "#888", lineHeight: 1.6 }}>{phase.focus}</div>
+      </div>
+      <div style={{ display: "flex", marginBottom: 20, borderBottom: "1px solid #141414" }}>
+        {["field", "gym", "mental"].map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: "10px 20px", background: "transparent", border: "none", borderBottom: activeTab === tab ? `1px solid ${phase.color}` : "1px solid transparent", color: activeTab === tab ? phase.color : "#444", cursor: "pointer", fontSize: 11, letterSpacing: 3, fontFamily: "'Courier New', monospace", textTransform: "uppercase", marginBottom: -1 }}>{tab}</button>
+        ))}
+      </div>
+      {activeTab === "field" && <div>
+        {phase.field.map((item, i) => (
+          <div key={i} style={{ marginBottom: 12, padding: "16px", background: "#0d0d0d", borderLeft: `3px solid ${phase.color}` }}>
+            <div style={{ fontSize: 12, color: phase.color, marginBottom: 6 }}>{item.name}</div>
+            <div style={{ fontSize: 13, color: "#777", lineHeight: 1.7 }}>{item.details}</div>
+          </div>
+        ))}
+        <div style={{ marginTop: 24, borderTop: "1px solid #141414", paddingTop: 20 }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: "#333", marginBottom: 12 }}>EVERY NIGHT — INDOOR BALL</div>
+          {dailyRoom.map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #0d0d0d" }}>
+              <div style={{ width: 6, height: 6, background: phase.color, flexShrink: 0 }} />
+              <div style={{ fontSize: 12, color: "#666" }}>{item}</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+      {activeTab === "gym" && <div>
+        {phase.gym.map((block, i) => (
+          <div key={i} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 10 }}>{block.day}</div>
+            {block.sessions.map((s, j) => (
+              <div key={j} style={{ marginBottom: 10, padding: "16px", background: "#0d0d0d", borderLeft: `3px solid ${phase.color}` }}>
+                <div style={{ fontSize: 12, color: phase.color, marginBottom: 6 }}>{s.name}</div>
+                <div style={{ fontSize: 13, color: "#777", lineHeight: 1.7 }}>{s.details}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>}
+      {activeTab === "mental" && <div style={{ padding: "20px", background: "#0d0d0d", borderLeft: `3px solid ${phase.color}`, fontSize: 13, color: "#777", lineHeight: 1.8 }}>{phase.mental}</div>}
+    </div>
+  );
+}
+
+function SoccerBible() {
+  const [activeChapter, setActiveChapter] = useState(0);
+  const [activeSection, setActiveSection] = useState(0);
+  const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const chapter = bibleChapters[activeChapter];
+  const section = chapter.sections[activeSection];
+  const handleSearch = (q) => {
+    setSearch(q);
+    if (!q.trim()) { setSearchResults([]); return; }
+    const results = [];
+    bibleChapters.forEach((ch, ci) => ch.sections.forEach((sec, si) => {
+      if (sec.title.toLowerCase().includes(q.toLowerCase()) || sec.content.toLowerCase().includes(q.toLowerCase()))
+        results.push({ ci, si, chTitle: ch.title, secTitle: sec.title });
+    }));
+    setSearchResults(results);
+  };
+  return (
+    <div style={{ display: "flex", height: "100vh", flexDirection: "column" }}>
+      <div style={{ padding: "24px 24px 12px", borderBottom: "1px solid #141414" }}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 10 }}>THE SOCCER <span style={{ color: "#00FF87" }}>BIBLE</span></div>
+        <input placeholder="Search... 'topspin' 'pressing' 'Isagi'" value={search} onChange={e => handleSearch(e.target.value)} style={{ background: "#111", border: "1px solid #1a1a1a", padding: "8px 12px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", width: "100%", maxWidth: 400 }} />
+        {searchResults.length > 0 && (
+          <div style={{ background: "#111", border: "1px solid #1a1a1a", maxWidth: 400, maxHeight: 160, overflowY: "auto", marginTop: 4 }}>
+            {searchResults.map((r, i) => (
+              <div key={i} onClick={() => { setActiveChapter(r.ci); setActiveSection(r.si); setSearch(""); setSearchResults([]); }} style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #141414", fontSize: 11 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#1a1a1a"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <span style={{ color: "#00FF87" }}>{r.chTitle}</span><span style={{ color: "#333" }}> → </span><span style={{ color: "#888" }}>{r.secTitle}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div style={{ width: 200, borderRight: "1px solid #141414", overflowY: "auto", flexShrink: 0 }}>
+          {bibleChapters.map((ch, ci) => (
+            <div key={ci}>
+              <div onClick={() => { setActiveChapter(ci); setActiveSection(0); }} style={{ padding: "12px 16px", cursor: "pointer", background: activeChapter === ci ? "#111" : "transparent", borderLeft: activeChapter === ci ? "2px solid #00FF87" : "2px solid transparent" }}
+                onMouseEnter={e => { if (activeChapter !== ci) e.currentTarget.style.background = "#0d0d0d"; }}
+                onMouseLeave={e => { if (activeChapter !== ci) e.currentTarget.style.background = "transparent"; }}>
+                <div style={{ fontSize: 14 }}>{ch.icon}</div>
+                <div style={{ fontSize: 10, color: activeChapter === ci ? "#00FF87" : "#444", letterSpacing: 2, marginTop: 2 }}>{ch.title.toUpperCase()}</div>
+              </div>
+              {activeChapter === ci && (
+                <div style={{ paddingLeft: 16, paddingBottom: 8 }}>
+                  {ch.sections.map((sec, si) => (
+                    <div key={si} onClick={() => setActiveSection(si)} style={{ padding: "5px 0 5px 10px", borderLeft: activeSection === si ? "1px solid #00FF87" : "1px solid #1a1a1a", fontSize: 10, color: activeSection === si ? "#bbb" : "#333", cursor: "pointer", lineHeight: 1.4 }}
+                      onMouseEnter={e => { if (activeSection !== si) e.currentTarget.style.color = "#555"; }}
+                      onMouseLeave={e => { if (activeSection !== si) e.currentTarget.style.color = "#333"; }}>{sec.title}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ flex: 1, padding: "24px 28px", overflowY: "auto" }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: "#333", marginBottom: 8 }}>{chapter.title.toUpperCase()}</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 20 }}>{section.title}</div>
+          <div style={{ fontSize: 13, color: "#777", lineHeight: 2, whiteSpace: "pre-line", borderLeft: "3px solid #00FF8718", paddingLeft: 16 }}>{section.content}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32, paddingTop: 16, borderTop: "1px solid #141414" }}>
+            <span onClick={() => { if (activeSection > 0) setActiveSection(activeSection - 1); }} style={{ fontSize: 11, color: activeSection > 0 ? "#444" : "#1a1a1a", cursor: activeSection > 0 ? "pointer" : "default", letterSpacing: 2 }}>← PREV</span>
+            <span style={{ fontSize: 10, color: "#222" }}>{activeSection + 1} / {chapter.sections.length}</span>
+            <span onClick={() => { if (activeSection < chapter.sections.length - 1) setActiveSection(activeSection + 1); }} style={{ fontSize: 11, color: activeSection < chapter.sections.length - 1 ? "#444" : "#1a1a1a", cursor: activeSection < chapter.sections.length - 1 ? "pointer" : "default", letterSpacing: 2 }}>NEXT →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MatchJournal({ userId }) {
+  const [entries, setEntries] = useState([]);
+  const [form, setForm] = useState({ date: "", opponent: "", result: "", well: "", exposed: "", next: "" });
+  const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { sb.from("match_journal").select("*").eq("user_id", userId).order("created_at", { ascending: false }).then(({ data }) => { setEntries(data || []); setLoading(false); }); }, [userId]);
+  const addEntry = async () => {
+    if (!form.date) return;
+    const { data } = await sb.from("match_journal").insert([{ ...form, user_id: userId }]).select().single();
+    if (data) { setEntries([data, ...entries]); setForm({ date: "", opponent: "", result: "", well: "", exposed: "", next: "" }); setAdding(false); }
+  };
+  const deleteEntry = async (id) => { await sb.from("match_journal").delete().eq("id", id); setEntries(entries.filter(e => e.id !== id)); };
+  const inputStyle = { background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "8px 10px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", width: "100%" };
+  const labelStyle = { fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" };
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div><div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>AFTER EVERY GAME</div><div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>MATCH <span style={{ color: "#00FF87" }}>JOURNAL</span></div></div>
+        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "#1a1a1a" : "#00FF87", color: adding ? "#666" : "#000", border: "none", padding: "10px 16px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>{adding ? "CANCEL" : "+ LOG MATCH"}</button>
+      </div>
+      {adding && (
+        <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "20px", marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+            {[["date", "DATE", "date"], ["opponent", "OPPONENT", "text"], ["result", "RESULT", "text"]].map(([key, label, type]) => (
+              <div key={key}><label style={labelStyle}>{label}</label><input type={type} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} style={inputStyle} /></div>
+            ))}
+          </div>
+          {[["well", "WHAT I DID WELL"], ["exposed", "WHERE I GOT EXPOSED"], ["next", "WORK ON NEXT SESSION"]].map(([key, label]) => (
+            <div key={key} style={{ marginBottom: 12 }}><label style={labelStyle}>{label}</label><textarea value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} rows={2} style={{ ...inputStyle, resize: "vertical" }} /></div>
+          ))}
+          <button onClick={addEntry} style={{ background: "#00FF87", color: "#000", border: "none", padding: "10px 20px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>SAVE</button>
+        </div>
+      )}
+      {loading && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>Loading...</div>}
+      {!loading && entries.length === 0 && !adding && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>No matches logged yet.</div>}
+      {entries.map(entry => (
+        <div key={entry.id} style={{ background: "#0d0d0d", borderLeft: "3px solid #00FF87", padding: "16px", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+            <div><span style={{ fontSize: 12, color: "#ccc" }}>{entry.date}</span>{entry.opponent && <span style={{ fontSize: 12, color: "#555", marginLeft: 12 }}>vs {entry.opponent}</span>}{entry.result && <span style={{ fontSize: 12, color: "#00FF87", marginLeft: 12 }}>{entry.result}</span>}</div>
+            <span onClick={() => deleteEntry(entry.id)} style={{ fontSize: 10, color: "#333", cursor: "pointer" }}>✕</span>
+          </div>
+          {[["well", "DID WELL"], ["exposed", "GOT EXPOSED"], ["next", "WORK ON NEXT"]].map(([key, label]) => entry[key] && (
+            <div key={key} style={{ marginBottom: 8 }}><div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 3 }}>{label}</div><div style={{ fontSize: 12, color: "#666" }}>{entry[key]}</div></div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProgressLog({ userId }) {
+  const [logs, setLogs] = useState([]);
+  const [jugglingRecord, setJugglingRecord] = useState(0);
+  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], type: "Field", duration: "", juggling: "", notes: "", felt: "3" });
+  const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    async function load() {
+      const [logsRes, jrRes] = await Promise.all([
+        sb.from("progress_logs").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+        sb.from("juggling_record").select("record").eq("user_id", userId).single(),
+      ]);
+      setLogs(logsRes.data || []); setJugglingRecord(jrRes.data?.record || 0); setLoading(false);
+    }
+    load();
+  }, [userId]);
+  const addLog = async () => {
+    if (!form.date) return;
+    const jugglingVal = parseInt(form.juggling) || 0;
+    if (jugglingVal > jugglingRecord) { await sb.from("juggling_record").update({ record: jugglingVal, updated_at: new Date().toISOString() }).eq("user_id", userId); setJugglingRecord(jugglingVal); }
+    const { data } = await sb.from("progress_logs").insert([{ ...form, user_id: userId }]).select().single();
+    if (data) { setLogs([data, ...logs]); setForm({ date: new Date().toISOString().split("T")[0], type: "Field", duration: "", juggling: "", notes: "", felt: "3" }); setAdding(false); }
+  };
+  const deleteLog = async (id) => { await sb.from("progress_logs").delete().eq("id", id); setLogs(logs.filter(l => l.id !== id)); };
+  const inputStyle = { background: "#0a0a0a", border: "1px solid #1a1a1a", padding: "8px 10px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", width: "100%" };
+  const thisWeek = logs.filter(l => { const d = new Date(l.date); const now = new Date(); return (now - d) / (1000 * 60 * 60 * 24) <= 7; }).length;
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div><div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>EVERY SESSION</div><div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>PROGRESS <span style={{ color: "#00FF87" }}>LOG</span></div></div>
+        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "#1a1a1a" : "#00FF87", color: adding ? "#666" : "#000", border: "none", padding: "10px 16px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>{adding ? "CANCEL" : "+ LOG SESSION"}</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+        {[{ label: "Total Sessions", value: logs.length, color: "#00FF87" }, { label: "Juggling Record", value: jugglingRecord + " touches", color: "#00BFFF" }, { label: "This Week", value: thisWeek, color: "#FFD700" }].map((s, i) => (
+          <div key={i} style={{ padding: "16px", background: "#0d0d0d", borderLeft: `3px solid ${s.color}` }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: "#444", marginTop: 4, letterSpacing: 2 }}>{s.label.toUpperCase()}</div>
+          </div>
+        ))}
+      </div>
+      {adding && (
+        <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "20px", marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>DATE</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} /></div>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>TYPE</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} style={{ ...inputStyle, cursor: "pointer" }}>{["Field", "Gym", "Conditioning", "Pickup Game", "Indoor/Room"].map(t => <option key={t}>{t}</option>)}</select></div>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>DURATION (min)</label><input type="number" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} style={inputStyle} /></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>JUGGLING (touches)</label><input type="number" placeholder={`Record: ${jugglingRecord}`} value={form.juggling} onChange={e => setForm({ ...form, juggling: e.target.value })} style={inputStyle} /></div>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>FELT (1–5)</label><select value={form.felt} onChange={e => setForm({ ...form, felt: e.target.value })} style={{ ...inputStyle, cursor: "pointer" }}>{["1","2","3","4","5"].map(v => <option key={v}>{v}</option>)}</select></div>
+          </div>
+          <div style={{ marginBottom: 12 }}><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>NOTES</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "vertical" }} /></div>
+          <button onClick={addLog} style={{ background: "#00FF87", color: "#000", border: "none", padding: "10px 20px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>SAVE</button>
+        </div>
+      )}
+      {loading && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>Loading...</div>}
+      {logs.map(log => (
+        <div key={log.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #0d0d0d" }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ fontSize: 11, color: "#555", width: 90 }}>{log.date}</div>
+            <div style={{ fontSize: 12, color: "#00FF87" }}>{log.type}</div>
+            {log.duration && <div style={{ fontSize: 11, color: "#444" }}>{log.duration}min</div>}
+            {log.juggling && <div style={{ fontSize: 11, color: "#00BFFF" }}>⚽ {log.juggling}</div>}
+            {log.felt && <div style={{ fontSize: 11, color: "#444" }}>{"★".repeat(parseInt(log.felt))}</div>}
+          </div>
+          <span onClick={() => deleteLog(log.id)} style={{ fontSize: 10, color: "#222", cursor: "pointer", flexShrink: 0 }}>✕</span>
+        </div>
+      ))}
+      {!loading && logs.length === 0 && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>No sessions logged yet.</div>}
+    </div>
+  );
+}
+
+function GoalsBoard({ userId }) {
+  const [goals, setGoals] = useState([]);
+  const [newGoal, setNewGoal] = useState("");
+  const [newCat, setNewCat] = useState("short");
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { sb.from("goals").select("*").eq("user_id", userId).order("created_at", { ascending: true }).then(({ data }) => { setGoals(data || []); setLoading(false); }); }, [userId]);
+  const toggleGoal = async (id, done) => { await sb.from("goals").update({ done: !done }).eq("id", id); setGoals(goals.map(g => g.id === id ? { ...g, done: !done } : g)); };
+  const addGoal = async () => {
+    if (!newGoal.trim()) return;
+    const { data } = await sb.from("goals").insert([{ user_id: userId, text: newGoal, category: newCat, done: false }]).select().single();
+    if (data) { setGoals([...goals, data]); setNewGoal(""); }
+  };
+  const deleteGoal = async (id) => { await sb.from("goals").delete().eq("id", id); setGoals(goals.filter(g => g.id !== id)); };
+  const cats = [{ key: "short", label: "SHORT TERM", color: "#00FF87", desc: "Next 3 months" }, { key: "medium", label: "MEDIUM TERM", color: "#FFD700", desc: "Next 1–2 years" }, { key: "long", label: "LONG TERM", color: "#FF4444", desc: "The vision" }];
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>WRITTEN DOWN. VISIBLE.</div>
+      <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 24 }}>GOALS <span style={{ color: "#00FF87" }}>BOARD</span></div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <input value={newGoal} onChange={e => setNewGoal(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="Add a new goal..." style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "8px 12px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none" }} />
+        <select value={newCat} onChange={e => setNewCat(e.target.value)} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "8px 12px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 11, outline: "none", cursor: "pointer" }}>
+          {cats.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+        </select>
+        <button onClick={addGoal} style={{ background: "#00FF87", color: "#000", border: "none", padding: "8px 16px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>ADD</button>
+      </div>
+      {loading && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>Loading...</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+        {cats.map(cat => (
+          <div key={cat.key} style={{ background: "#0a0a0a", border: `1px solid ${cat.color}22` }}>
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${cat.color}22` }}>
+              <div style={{ fontSize: 10, letterSpacing: 3, color: cat.color }}>{cat.label}</div>
+              <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{cat.desc}</div>
+            </div>
+            <div style={{ padding: "8px" }}>
+              {goals.filter(g => g.category === cat.key).map(goal => (
+                <div key={goal.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 8px", borderBottom: "1px solid #0d0d0d" }}>
+                  <div onClick={() => toggleGoal(goal.id, goal.done)} style={{ width: 14, height: 14, border: `1px solid ${goal.done ? cat.color : "#333"}`, background: goal.done ? cat.color : "transparent", cursor: "pointer", flexShrink: 0 }} />
+                  <div style={{ fontSize: 12, color: goal.done ? "#444" : "#888", textDecoration: goal.done ? "line-through" : "none", flex: 1 }}>{goal.text}</div>
+                  <span onClick={() => deleteGoal(goal.id)} style={{ fontSize: 10, color: "#222", cursor: "pointer" }}>✕</span>
+                </div>
+              ))}
+              {goals.filter(g => g.category === cat.key).length === 0 && <div style={{ fontSize: 11, color: "#222", padding: "12px 8px" }}>No goals set yet.</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WeakFoot({ userId }) {
+  const [log, setLog] = useState([]);
+  const [jugglingRecord, setJugglingRecord] = useState(0);
+  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], drill: "", reps: "", notes: "" });
+  const [adding, setAdding] = useState(false);
+  const [newJuggling, setNewJuggling] = useState("");
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    async function load() {
+      const [logRes, jrRes] = await Promise.all([
+        sb.from("weak_foot_log").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+        sb.from("juggling_record").select("record").eq("user_id", userId).single(),
+      ]);
+      setLog(logRes.data || []); setJugglingRecord(jrRes.data?.record || 0); setLoading(false);
+    }
+    load();
+  }, [userId]);
+  const addEntry = async () => {
+    if (!form.date) return;
+    const { data } = await sb.from("weak_foot_log").insert([{ ...form, user_id: userId }]).select().single();
+    if (data) { setLog([data, ...log]); setForm({ date: new Date().toISOString().split("T")[0], drill: "", reps: "", notes: "" }); setAdding(false); }
+  };
+  const updateRecord = async () => {
+    const val = parseInt(newJuggling);
+    if (val > jugglingRecord) { await sb.from("juggling_record").update({ record: val, updated_at: new Date().toISOString() }).eq("user_id", userId); setJugglingRecord(val); setNewJuggling(""); }
+  };
+  const drills = ["Wall passes — weak foot only", "Shooting at target — weak foot", "First touch control — weak foot", "Inside rolls — weak foot", "Juggling — weak foot only", "Dribble course — weak foot"];
+  const inputStyle = { background: "#0a0a0a", border: "1px solid #1a1a1a", padding: "8px 10px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", width: "100%" };
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>SEPARATE ATTENTION OR IT GETS NEGLECTED</div>
+      <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 24 }}>WEAK FOOT <span style={{ color: "#00BFFF" }}>TRACKER</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderLeft: "3px solid #00BFFF" }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: "#00BFFF" }}>{jugglingRecord}</div>
+          <div style={{ fontSize: 10, color: "#444", letterSpacing: 2, marginTop: 4 }}>JUGGLING RECORD</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <input type="number" placeholder="New record..." value={newJuggling} onChange={e => setNewJuggling(e.target.value)} onKeyDown={e => e.key === "Enter" && updateRecord()} style={{ ...inputStyle, flex: 1 }} />
+            <button onClick={updateRecord} style={{ background: "#00BFFF", color: "#000", border: "none", padding: "8px 12px", fontSize: 10, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>SET</button>
+          </div>
+        </div>
+        <div style={{ padding: "20px", background: "#0d0d0d", borderLeft: "3px solid #444" }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: "#ccc" }}>{log.length}</div>
+          <div style={{ fontSize: 10, color: "#444", letterSpacing: 2, marginTop: 4 }}>WEAK FOOT SESSIONS</div>
+          <div style={{ fontSize: 11, color: "#333", marginTop: 8 }}>Every session is the gap closing.</div>
+        </div>
+      </div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 10, letterSpacing: 4, color: "#333", marginBottom: 12 }}>RECOMMENDED DRILLS</div>
+        {drills.map((d, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #0d0d0d", fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 10 }}><div style={{ width: 4, height: 4, background: "#00BFFF", flexShrink: 0 }} />{d}</div>)}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: "#444" }}>Session Log</div>
+        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "#1a1a1a" : "#00BFFF", color: adding ? "#666" : "#000", border: "none", padding: "8px 14px", fontSize: 10, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>{adding ? "CANCEL" : "+ LOG SESSION"}</button>
+      </div>
+      {adding && (
+        <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "16px", marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>DATE</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} /></div>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>DRILL</label>
+              <select value={form.drill} onChange={e => setForm({ ...form, drill: e.target.value })} style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">Select...</option>
+                {drills.map(d => <option key={d}>{d}</option>)}
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>REPS</label><input type="number" value={form.reps} onChange={e => setForm({ ...form, reps: e.target.value })} style={inputStyle} /></div>
+          </div>
+          <div style={{ marginBottom: 12 }}><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>NOTES</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "vertical" }} /></div>
+          <button onClick={addEntry} style={{ background: "#00BFFF", color: "#000", border: "none", padding: "10px 20px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>SAVE</button>
+        </div>
+      )}
+      {loading && <div style={{ fontSize: 12, color: "#333", padding: "20px 0", textAlign: "center" }}>Loading...</div>}
+      {log.map(entry => (
+        <div key={entry.id} style={{ padding: "10px 0", borderBottom: "1px solid #0d0d0d", display: "flex", gap: 16, alignItems: "center" }}>
+          <div style={{ fontSize: 11, color: "#444", width: 90 }}>{entry.date}</div>
+          <div style={{ fontSize: 12, color: "#00BFFF", flex: 1 }}>{entry.drill}</div>
+          {entry.reps && <div style={{ fontSize: 11, color: "#555" }}>{entry.reps} reps</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VideoNotes({ userId }) {
+  const [notes, setNotes] = useState([]);
+  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], player: "", match: "", observations: "", apply: "" });
+  const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { sb.from("video_notes").select("*").eq("user_id", userId).order("created_at", { ascending: false }).then(({ data }) => { setNotes(data || []); setLoading(false); }); }, [userId]);
+  const addNote = async () => {
+    if (!form.observations.trim()) return;
+    const { data } = await sb.from("video_notes").insert([{ ...form, user_id: userId }]).select().single();
+    if (data) { setNotes([data, ...notes]); setForm({ date: new Date().toISOString().split("T")[0], player: "", match: "", observations: "", apply: "" }); setAdding(false); }
+  };
+  const deleteNote = async (id) => { await sb.from("video_notes").delete().eq("id", id); setNotes(notes.filter(n => n.id !== id)); };
+  const inputStyle = { background: "#0a0a0a", border: "1px solid #1a1a1a", padding: "8px 10px", color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", width: "100%" };
+  const suggestions = ["Pirlo — through balls compilation", "Xavi — passing masterclass", "Iniesta — dribbling and movement", "De Bruyne — half-space exploitation", "Modric — positioning and scanning", "Kante — defensive transition"];
+  return (
+    <div style={{ padding: "32px" }}>
+      <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>BUILD YOUR TACTICAL LIBRARY</div>
+      <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 24 }}>VIDEO <span style={{ color: "#FFD700" }}>NOTES</span></div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 10, letterSpacing: 4, color: "#333", marginBottom: 10 }}>STUDY THESE FIRST</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {suggestions.map((s, i) => <div key={i} style={{ padding: "6px 12px", background: "#0d0d0d", border: "1px solid #1a1a1a", fontSize: 11, color: "#555" }}>{s}</div>)}
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "#1a1a1a" : "#FFD700", color: adding ? "#666" : "#000", border: "none", padding: "10px 16px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>{adding ? "CANCEL" : "+ ADD NOTES"}</button>
+      </div>
+      {adding && (
+        <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", padding: "20px", marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+            {[["date", "DATE", "date"], ["player", "PLAYER STUDIED", "text"], ["match", "VIDEO / MATCH", "text"]].map(([key, label, type]) => (
+              <div key={key}><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>{label}</label><input type={type} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} style={inputStyle} /></div>
+            ))}
+          </div>
+          {[["observations", "WHAT I NOTICED"], ["apply", "HOW I APPLY THIS TO MY GAME"]].map(([key, label]) => (
+            <div key={key} style={{ marginBottom: 12 }}><label style={{ fontSize: 10, letterSpacing: 3, color: "#444", marginBottom: 4, display: "block" }}>{label}</label><textarea value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></div>
+          ))}
+          <button onClick={addNote} style={{ background: "#FFD700", color: "#000", border: "none", padding: "10px 20px", fontSize: 11, letterSpacing: 2, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>SAVE</button>
+        </div>
+      )}
+      {loading && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>Loading...</div>}
+      {!loading && notes.length === 0 && !adding && <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>No video notes yet. Start with Pirlo or Xavi.</div>}
+      {notes.map(note => (
+        <div key={note.id} style={{ background: "#0d0d0d", borderLeft: "3px solid #FFD700", padding: "16px", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+            <div>{note.player && <span style={{ fontSize: 13, color: "#FFD700", fontWeight: 900 }}>{note.player}</span>}{note.match && <span style={{ fontSize: 11, color: "#555", marginLeft: 10 }}>{note.match}</span>}<span style={{ fontSize: 11, color: "#333", marginLeft: 10 }}>{note.date}</span></div>
+            <span onClick={() => deleteNote(note.id)} style={{ fontSize: 10, color: "#333", cursor: "pointer" }}>✕</span>
+          </div>
+          {note.observations && <div style={{ marginBottom: 10 }}><div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 4 }}>NOTICED</div><div style={{ fontSize: 12, color: "#666", lineHeight: 1.6 }}>{note.observations}</div></div>}
+          {note.apply && <div><div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 4 }}>APPLY TO MY GAME</div><div style={{ fontSize: 12, color: "#666", lineHeight: 1.6 }}>{note.apply}</div></div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById("root"));
+</script>
+</body>
+</html>
