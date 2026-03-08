@@ -266,6 +266,7 @@ const navItems = [
   { id: "goals", label: "Goals Board", icon: "✦" },
   { id: "weakfoot", label: "Weak Foot", icon: "◐" },
   { id: "vidnotes", label: "Video Notes", icon: "▷" },
+  { id: "skills", label: "Skills", icon: "◆" },
 ];
 
 function AuthScreen({ onLogin }) {
@@ -332,8 +333,32 @@ function App() {
   const [username, setUsername] = useState("");
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  if (!userId) return <AuthScreen onLogin={(id, u) => { setUserId(id); setUsername(u); }} />;
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("soccerhq_session");
+      if (saved) {
+        const { id, uname } = JSON.parse(saved);
+        if (id && uname) { setUserId(id); setUsername(uname); }
+      }
+    } catch(e) {}
+    setAuthChecked(true);
+  }, []);
+
+  const handleLogin = (id, u) => {
+    setUserId(id); setUsername(u);
+    try { localStorage.setItem("soccerhq_session", JSON.stringify({ id, uname: u })); } catch(e) {}
+  };
+
+  const handleLogout = () => {
+    setUserId(null); setUsername(""); setPage("dashboard");
+    try { localStorage.removeItem("soccerhq_session"); } catch(e) {}
+  };
+
+  if (!authChecked) return <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "#00FF87", fontSize: 10, letterSpacing: 4 }}>LOADING...</div></div>;
+
+  if (!userId) return <AuthScreen onLogin={handleLogin} />;
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#080808" }}>
@@ -358,7 +383,7 @@ function App() {
         {sidebarOpen && (
           <div style={{ padding: "12px 16px", borderTop: "1px solid #141414" }}>
             <div style={{ fontSize: 9, color: "#333", letterSpacing: 2, marginBottom: 6 }}>{username.toUpperCase()}</div>
-            <div onClick={() => { setUserId(null); setUsername(""); setPage("dashboard"); }} style={{ fontSize: 9, color: "#333", letterSpacing: 2, cursor: "pointer" }}
+            <div onClick={handleLogout} style={{ fontSize: 9, color: "#333", letterSpacing: 2, cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.color = "#FF4444"}
               onMouseLeave={e => e.currentTarget.style.color = "#333"}>LOGOUT</div>
           </div>
@@ -367,21 +392,13 @@ function App() {
       {/* MOBILE BOTTOM NAV */}
       <div className="bottom-nav">
         {navItems.map(item => (
-          <div key={item.id} className={"bottom-nav-item" + (page === item.id ? " active" : "")} onClick={() => setPage(item.id)}>
-            <span className="bottom-nav-icon" style={{ color: page === item.id ? "var(--green)" : "#3a3a3a" }}>{item.icon}</span>
-            <span className="bottom-nav-label" style={{ color: page === item.id ? "var(--green)" : "#333" }}>{item.label.split(" ")[0]}</span>
+          <div key={item.id} onClick={() => setPage(item.id)} style={{ flex: "0 0 auto", padding: "10px 14px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, borderTop: page === item.id ? "2px solid #00FF87" : "2px solid transparent", background: page === item.id ? "#111" : "transparent", minWidth: 56 }}>
+            <span style={{ fontSize: 16, color: page === item.id ? "#00FF87" : "#444" }}>{item.icon}</span>
+            <span style={{ fontSize: 8, letterSpacing: 1, color: page === item.id ? "#00FF87" : "#333", whiteSpace: "nowrap" }}>{item.label.split(" ")[0]}</span>
           </div>
         ))}
       </div>
       <div className="main-content" style={{ flex: 1, overflowY: "auto", minHeight: "100vh" }}>
-        {/* MOBILE TOP HEADER */}
-        <div className="mobile-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "var(--green)", fontSize: 16 }}>⚽</span>
-            <span style={{ fontSize: 10, letterSpacing: 4, color: "var(--green)" }}>SOCCER HQ</span>
-          </div>
-          <div style={{ fontSize: 10, letterSpacing: 2, color: "var(--dim)" }}>{navItems.find(n => n.id === page)?.label?.toUpperCase()}</div>
-        </div>
         {page === "dashboard" && <Dashboard userId={userId} setPage={setPage} />}
         {page === "training" && <TrainingPlan />}
         {page === "bible" && <SoccerBible />}
@@ -390,6 +407,7 @@ function App() {
         {page === "goals" && <GoalsBoard userId={userId} />}
         {page === "weakfoot" && <WeakFoot userId={userId} />}
         {page === "vidnotes" && <VideoNotes userId={userId} />}
+        {page === "skills" && <SkillsCenter userId={userId} />}
       </div>
     </div>
   );
@@ -899,6 +917,346 @@ function VideoNotes({ userId }) {
 }
 
 ReactDOM.render(<App />, document.getElementById("root"));
+
+// ─── SKILLS CENTER ────────────────────────────────────────────────────────────
+const SKILL_CATEGORIES = {
+  fundamentals: {
+    label: "Fundamentals", color: "#00FF87",
+    skills: [
+      "Passing — Short", "Passing — Long", "Passing — Through Ball",
+      "First Touch — Inside", "First Touch — Outside", "First Touch — Chest",
+      "Shooting — Driven", "Shooting — Curl", "Shooting — Knuckleball",
+      "Dribbling — Close Control", "Dribbling — Speed",
+      "Defending — 1v1", "Defending — Positioning",
+      "Heading", "Crossing", "Pressing",
+    ]
+  },
+  leftfoot: {
+    label: "Left Foot", color: "#00BFFF",
+    skills: [
+      "Left Foot — Pass", "Left Foot — Shot", "Left Foot — First Touch",
+      "Left Foot — Dribbling", "Left Foot — Cross", "Left Foot — Curl",
+    ]
+  },
+  physical: {
+    label: "Physical", color: "#FFD700",
+    skills: [
+      "Sprint Speed", "Explosive First Step", "Stamina", "Strength",
+      "Agility", "Balance", "Jumping",
+    ]
+  },
+  tactical: {
+    label: "Tactical IQ", color: "#FF8C00",
+    skills: [
+      "Scanning / Awareness", "Positioning Between Lines", "Transition Reading",
+      "Space Creation", "Pressing Triggers", "Tempo Control",
+      "Third Man Runs", "Overload Recognition",
+    ]
+  },
+  flair: {
+    label: "Flair & Advanced", color: "#FF4444",
+    skills: [
+      "Rabona", "Nutmeg", "Rainbow Flick", "Elastico",
+      "Roulette (Zidane Turn)", "Cruyff Turn", "Step-Over",
+      "Outside of Foot Pass (Trivela)", "Bicycle Kick",
+      "No-Look Pass", "Heel Pass", "Chip Shot",
+      "Scorpion Kick", "Juggling — Both Feet", "Juggling — Headers",
+    ]
+  },
+  setpieces: {
+    label: "Set Pieces", color: "#B87FFF",
+    skills: [
+      "Free Kick — Direct", "Free Kick — Curl", "Free Kick — Knuckleball",
+      "Corner Kick — Inswing", "Corner Kick — Outswing",
+      "Penalty", "Throw-In (Long)",
+    ]
+  },
+};
+
+const RATING_LABELS = ["—", "Beginner", "Learning", "Developing", "Competent", "Sharp", "Elite"];
+const RATING_COLORS = ["#333", "#FF4444", "#FF8C00", "#FFD700", "#00BFFF", "#00FF87", "#fff"];
+
+function SkillsCenter({ userId }) {
+  const [tab, setTab] = useState("overview");
+  const [skills, setSkills] = useState({});
+  const [goals, setGoals] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [editingSkill, setEditingSkill] = useState(null);
+  const [filterCat, setFilterCat] = useState("all");
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await sb.from("skills").select("*").eq("user_id", userId);
+      const skillMap = {};
+      const goalMap = {};
+      (data || []).forEach(s => {
+        skillMap[s.skill_name] = s.rating || 0;
+        if (s.is_goal) goalMap[s.skill_name] = { priority: s.priority || "normal", notes: s.notes || "" };
+      });
+      setSkills(skillMap);
+      setGoals(goalMap);
+      setLoading(false);
+    }
+    load();
+  }, [userId]);
+
+  const updateRating = async (skillName, rating) => {
+    const existing = await sb.from("skills").select("id").eq("user_id", userId).eq("skill_name", skillName).single();
+    if (existing.data) {
+      await sb.from("skills").update({ rating }).eq("id", existing.data.id);
+    } else {
+      await sb.from("skills").insert([{ user_id: userId, skill_name: skillName, rating, is_goal: false }]);
+    }
+    setSkills(prev => ({ ...prev, [skillName]: rating }));
+    setEditingSkill(null);
+  };
+
+  const toggleGoal = async (skillName) => {
+    const isGoal = !!goals[skillName];
+    const existing = await sb.from("skills").select("id").eq("user_id", userId).eq("skill_name", skillName).single();
+    if (existing.data) {
+      await sb.from("skills").update({ is_goal: !isGoal }).eq("id", existing.data.id);
+    } else {
+      await sb.from("skills").insert([{ user_id: userId, skill_name: skillName, rating: 0, is_goal: true }]);
+    }
+    if (isGoal) {
+      const newGoals = { ...goals };
+      delete newGoals[skillName];
+      setGoals(newGoals);
+    } else {
+      setGoals(prev => ({ ...prev, [skillName]: { priority: "normal", notes: "" } }));
+    }
+  };
+
+  const allSkillsFlat = Object.entries(SKILL_CATEGORIES).flatMap(([cat, { skills }]) =>
+    skills.map(s => ({ name: s, cat }))
+  );
+
+  const goalSkills = allSkillsFlat.filter(s => goals[s.name]);
+
+  const inputStyle = {
+    background: "#0a0a0a", border: "1px solid #1a1a1a", padding: "8px 10px",
+    color: "#aaa", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", width: "100%"
+  };
+
+  const tabs = [
+    { id: "overview", label: "My Skills" },
+    { id: "goals", label: "To Master" },
+  ];
+
+  if (loading) return <div style={{ padding: 32, fontSize: 12, color: "#333" }}>Loading...</div>;
+
+  const avgRating = () => {
+    const rated = Object.values(skills).filter(r => r > 0);
+    if (!rated.length) return 0;
+    return (rated.reduce((a, b) => a + b, 0) / rated.length).toFixed(1);
+  };
+
+  const topSkills = allSkillsFlat.filter(s => (skills[s.name] || 0) >= 5).slice(0, 4);
+  const weakSkills = allSkillsFlat.filter(s => (skills[s.name] || 0) > 0 && (skills[s.name] || 0) <= 2).slice(0, 4);
+
+  return (
+    <div>
+      <div className="page-padding" style={{ padding: "32px 32px 0" }}>
+        <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>KNOW WHERE YOU STAND</div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 20 }}>SKILLS <span style={{ color: "#00FF87" }}>CENTER</span></div>
+
+        {/* Quick stats */}
+        <div className="grid-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 24 }}>
+          {[
+            { label: "Avg Rating", value: avgRating(), color: "#00FF87" },
+            { label: "Skills Rated", value: Object.values(skills).filter(r => r > 0).length, color: "#00BFFF" },
+            { label: "To Master", value: goalSkills.length, color: "#FFD700" },
+            { label: "Elite (6)", value: Object.values(skills).filter(r => r === 6).length, color: "#FF4444" },
+          ].map((s, i) => (
+            <div key={i} style={{ padding: "14px 12px", background: "#0d0d0d", borderLeft: `2px solid ${s.color}` }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 9, color: "#444", marginTop: 3, letterSpacing: 1 }}>{s.label.toUpperCase()}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", borderBottom: "1px solid #141414", marginBottom: 0 }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: "10px 20px", background: "transparent", border: "none",
+              borderBottom: tab === t.id ? "2px solid #00FF87" : "2px solid transparent",
+              color: tab === t.id ? "#00FF87" : "#444", cursor: "pointer",
+              fontSize: 11, letterSpacing: 3, fontFamily: "'Courier New', monospace",
+              textTransform: "uppercase", marginBottom: -1,
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* OVERVIEW TAB */}
+      {tab === "overview" && (
+        <div className="page-padding" style={{ padding: "20px 32px 32px" }}>
+
+          {/* Strengths / Weaknesses summary */}
+          {(topSkills.length > 0 || weakSkills.length > 0) && (
+            <div className="grid-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+              {topSkills.length > 0 && (
+                <div style={{ padding: "14px", background: "#0d0d0d", borderLeft: "2px solid #00FF87" }}>
+                  <div style={{ fontSize: 9, letterSpacing: 3, color: "#00FF87", marginBottom: 8 }}>STRENGTHS</div>
+                  {topSkills.map(s => (
+                    <div key={s.name} style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
+                      {s.name.split("—")[1]?.trim() || s.name.split(" ")[0]} <span style={{ color: "#00FF87" }}>{"★".repeat(skills[s.name])}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {weakSkills.length > 0 && (
+                <div style={{ padding: "14px", background: "#0d0d0d", borderLeft: "2px solid #FF4444" }}>
+                  <div style={{ fontSize: 9, letterSpacing: 3, color: "#FF4444", marginBottom: 8 }}>NEEDS WORK</div>
+                  {weakSkills.map(s => (
+                    <div key={s.name} style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
+                      {s.name.split("—")[1]?.trim() || s.name.split(" ")[0]} <span style={{ color: "#FF4444" }}>{"▪".repeat(skills[s.name])}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Category filter */}
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 20, paddingBottom: 4 }}>
+            {[{ id: "all", label: "All" }, ...Object.entries(SKILL_CATEGORIES).map(([id, { label }]) => ({ id, label }))].map(cat => (
+              <button key={cat.id} onClick={() => setFilterCat(cat.id)} style={{
+                padding: "6px 12px", background: "transparent", border: `1px solid ${filterCat === cat.id ? "#00FF87" : "#1a1a1a"}`,
+                color: filterCat === cat.id ? "#00FF87" : "#444", cursor: "pointer", fontSize: 9,
+                letterSpacing: 2, fontFamily: "'Courier New', monospace", whiteSpace: "nowrap", flexShrink: 0,
+              }}>{cat.label.toUpperCase()}</button>
+            ))}
+          </div>
+
+          {/* Skills by category */}
+          {Object.entries(SKILL_CATEGORIES)
+            .filter(([catId]) => filterCat === "all" || filterCat === catId)
+            .map(([catId, { label, color, skills: catSkills }]) => (
+            <div key={catId} style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 9, letterSpacing: 4, color, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 16, height: 1, background: color }} />
+                {label.toUpperCase()}
+                <div style={{ flex: 1, height: 1, background: "#141414" }} />
+              </div>
+              {catSkills.map(skillName => {
+                const rating = skills[skillName] || 0;
+                const isEditing = editingSkill === skillName;
+                const isGoal = !!goals[skillName];
+                return (
+                  <div key={skillName} style={{ marginBottom: 6 }}>
+                    <div style={{
+                      padding: "10px 12px", background: isEditing ? "#111" : "#0d0d0d",
+                      border: `1px solid ${isEditing ? color : "#141414"}`,
+                      cursor: "pointer", transition: "all 0.15s",
+                    }} onClick={() => setEditingSkill(isEditing ? null : skillName)}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 11, color: "#888" }}>{skillName}</span>
+                          {isGoal && <span style={{ fontSize: 8, letterSpacing: 2, color: "#FFD700", border: "1px solid #FFD70044", padding: "1px 5px" }}>GOAL</span>}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {rating > 0 && (
+                            <span style={{ fontSize: 9, color: RATING_COLORS[rating], letterSpacing: 1 }}>{RATING_LABELS[rating].toUpperCase()}</span>
+                          )}
+                          <div style={{ display: "flex", gap: 2 }}>
+                            {[1,2,3,4,5,6].map(i => (
+                              <div key={i} style={{ width: 6, height: 6, background: i <= rating ? RATING_COLORS[rating] : "#1a1a1a", borderRadius: 1 }} />
+                            ))}
+                          </div>
+                          <span style={{ fontSize: 10, color: "#333", marginLeft: 4 }}>{isEditing ? "▲" : "▼"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {isEditing && (
+                      <div style={{ background: "#0a0a0a", border: `1px solid ${color}22`, borderTop: "none", padding: "12px" }}>
+                        <div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 10 }}>SET RATING</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                          {RATING_LABELS.map((label, i) => i === 0 ? null : (
+                            <button key={i} onClick={() => updateRating(skillName, i)} style={{
+                              padding: "6px 10px", background: rating === i ? RATING_COLORS[i] : "transparent",
+                              border: `1px solid ${rating === i ? RATING_COLORS[i] : "#222"}`,
+                              color: rating === i ? "#000" : RATING_COLORS[i],
+                              cursor: "pointer", fontSize: 9, letterSpacing: 1,
+                              fontFamily: "'Courier New', monospace",
+                            }}>{label.toUpperCase()}</button>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div onClick={() => toggleGoal(skillName)} style={{
+                            padding: "6px 12px", background: isGoal ? "#FFD70022" : "transparent",
+                            border: `1px solid ${isGoal ? "#FFD700" : "#222"}`,
+                            color: isGoal ? "#FFD700" : "#444", cursor: "pointer",
+                            fontSize: 9, letterSpacing: 2, fontFamily: "'Courier New', monospace",
+                          }}>{isGoal ? "✓ IN GOALS" : "+ ADD TO GOALS"}</div>
+                          <div onClick={() => updateRating(skillName, 0)} style={{ fontSize: 9, color: "#333", cursor: "pointer", letterSpacing: 1 }}>CLEAR</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TO MASTER TAB */}
+      {tab === "goals" && (
+        <div className="page-padding" style={{ padding: "20px 32px 32px" }}>
+          {goalSkills.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#333", padding: "40px 0", textAlign: "center" }}>
+              No skills marked as goals yet.<br />
+              <span style={{ fontSize: 11, color: "#222" }}>Go to My Skills → tap any skill → Add to Goals</span>
+            </div>
+          ) : (
+            Object.entries(SKILL_CATEGORIES).map(([catId, { label, color, skills: catSkills }]) => {
+              const catGoals = catSkills.filter(s => goals[s]);
+              if (!catGoals.length) return null;
+              return (
+                <div key={catId} style={{ marginBottom: 28 }}>
+                  <div style={{ fontSize: 9, letterSpacing: 4, color, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 16, height: 1, background: color }} />
+                    {label.toUpperCase()}
+                    <div style={{ flex: 1, height: 1, background: "#141414" }} />
+                  </div>
+                  {catGoals.map(skillName => {
+                    const rating = skills[skillName] || 0;
+                    return (
+                      <div key={skillName} style={{ padding: "14px 12px", background: "#0d0d0d", borderLeft: `2px solid ${color}`, marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, color: "#ccc" }}>{skillName}</span>
+                          <div onClick={() => toggleGoal(skillName)} style={{ fontSize: 9, color: "#333", cursor: "pointer", letterSpacing: 1 }}>REMOVE</div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ flex: 1, height: 3, background: "#141414", borderRadius: 2, overflow: "hidden" }}>
+                            <div style={{ width: `${(rating / 6) * 100}%`, height: "100%", background: RATING_COLORS[rating] || "#333", transition: "width 0.3s", borderRadius: 2 }} />
+                          </div>
+                          <span style={{ fontSize: 9, color: RATING_COLORS[rating] || "#333", minWidth: 60, textAlign: "right" }}>
+                            {rating > 0 ? RATING_LABELS[rating].toUpperCase() : "NOT RATED"}
+                          </span>
+                        </div>
+                        {rating === 0 && (
+                          <div style={{ fontSize: 10, color: "#2a2a2a", marginTop: 6 }}>Go to My Skills to set your current level →</div>
+                        )}
+                        {rating === 6 && (
+                          <div style={{ fontSize: 10, color: "#00FF87", marginTop: 6 }}>✓ MASTERED</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 </script>
 </body>
