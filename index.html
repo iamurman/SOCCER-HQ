@@ -408,6 +408,7 @@ function App() {
         {page === "weakfoot" && <WeakFoot userId={userId} />}
         {page === "vidnotes" && <VideoNotes userId={userId} />}
         {page === "skills" && <SkillsCenter userId={userId} />}
+        {page === "shots" && <ShotCounter userId={userId} />}
       </div>
     </div>
   );
@@ -1251,6 +1252,511 @@ function SkillsCenter({ userId }) {
                 </div>
               );
             })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SHOT COUNTER ─────────────────────────────────────────────────────────────
+
+const ANGLES = ["Left", "Center", "Right"];
+const DISTANCES = ["Close", "Mid", "Long"];
+const FEET = ["Right", "Left"];
+
+const SPOT_COLORS = (ratio) => {
+  if (ratio === null) return "#222";
+  if (ratio >= 0.7) return "#00FF87";
+  if (ratio >= 0.4) return "#FFD700";
+  return "#FF4444";
+};
+
+const SPOT_KEY = (angle, distance, foot) => `${angle}-${distance}-${foot}`;
+
+function GoalMap({ spots, onSpotClick, activeSpot }) {
+  // Goal map: 3 angles x 3 distances = 9 positions per foot, shown as grid
+  // We'll show both feet overlaid with a toggle
+  const [showFoot, setShowFoot] = useState("Right");
+
+  const getSpotData = (angle, distance) => {
+    const key = SPOT_KEY(angle, distance, showFoot);
+    return spots[key] || null;
+  };
+
+  return (
+    <div>
+      {/* Foot toggle */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {FEET.map(f => (
+          <button key={f} onClick={() => setShowFoot(f)} style={{
+            padding: "6px 16px", background: showFoot === f ? (f === "Right" ? "#00FF87" : "#00BFFF") : "transparent",
+            border: `1px solid ${f === "Right" ? "#00FF87" : "#00BFFF"}`,
+            color: showFoot === f ? "#000" : (f === "Right" ? "#00FF87" : "#00BFFF"),
+            cursor: "pointer", fontSize: 10, letterSpacing: 2,
+            fontFamily: "'Courier New', monospace",
+          }}>{f.toUpperCase()} FOOT</button>
+        ))}
+      </div>
+
+      {/* Goal frame */}
+      <div style={{ position: "relative", marginBottom: 8 }}>
+        {/* Crossbar */}
+        <div style={{ border: "2px solid #333", borderBottom: "none", padding: "12px 8px 0", background: "#080808" }}>
+          {/* Goal interior grid - distances from top = Long, Mid, Close (far to near) */}
+          {["Long", "Mid", "Close"].map((dist, di) => (
+            <div key={dist} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 4 }}>
+              {ANGLES.map((angle) => {
+                const data = getSpotData(angle, dist);
+                const ratio = data ? (data.makes / data.total) : null;
+                const isActive = activeSpot === SPOT_KEY(angle, dist, showFoot);
+                return (
+                  <div key={angle} onClick={() => onSpotClick && onSpotClick(SPOT_KEY(angle, dist, showFoot))}
+                    style={{
+                      height: 52, background: isActive ? "#1a1a1a" : "#0d0d0d",
+                      border: `2px solid ${isActive ? "#fff" : SPOT_COLORS(ratio)}`,
+                      display: "flex", flexDirection: "column", alignItems: "center",
+                      justifyContent: "center", cursor: onSpotClick ? "pointer" : "default",
+                      transition: "all 0.15s", borderRadius: 2,
+                    }}>
+                    {data ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: SPOT_COLORS(ratio) }}>
+                          {Math.round(ratio * 100)}%
+                        </div>
+                        <div style={{ fontSize: 8, color: "#555" }}>{data.makes}/{data.total}</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 9, color: "#2a2a2a" }}>—</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        {/* Goalposts */}
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px" }}>
+          <div style={{ width: 4, height: 12, background: "#333" }} />
+          <div style={{ width: 4, height: 12, background: "#333" }} />
+        </div>
+        {/* Ground line */}
+        <div style={{ height: 3, background: "#1a1a1a", margin: "0 2px" }} />
+      </div>
+
+      {/* Legend labels */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        {ANGLES.map(a => <div key={a} style={{ flex: 1, textAlign: "center", fontSize: 8, color: "#333", letterSpacing: 1 }}>{a.toUpperCase()}</div>)}
+      </div>
+      <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+        {[["#00FF87", "70%+"], ["#FFD700", "40–69%"], ["#FF4444", "<40%"], ["#222", "No data"]].map(([c, l]) => (
+          <div key={l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 8, height: 8, background: c, borderRadius: 1 }} />
+            <span style={{ fontSize: 8, color: "#444" }}>{l}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AccuracyGraph({ sessions, foot }) {
+  if (!sessions || sessions.length === 0) return (
+    <div style={{ padding: "20px", textAlign: "center", fontSize: 11, color: "#2a2a2a" }}>No {foot} foot data yet</div>
+  );
+
+  const color = foot === "Right" ? "#00FF87" : "#00BFFF";
+  const maxW = 300;
+  const h = 80;
+
+  // Aggregate by session date
+  const bySession = {};
+  sessions.forEach(s => {
+    if (s.foot !== foot) return;
+    const k = s.session_date || "unknown";
+    if (!bySession[k]) bySession[k] = { makes: 0, total: 0 };
+    bySession[k].makes += s.makes;
+    bySession[k].total += s.total;
+  });
+
+  const points = Object.entries(bySession).sort(([a],[b]) => a.localeCompare(b)).map(([date, d]) => ({
+    date, ratio: d.total > 0 ? d.makes / d.total : 0
+  }));
+
+  if (points.length < 2) {
+    const p = points[0];
+    return (
+      <div style={{ padding: "12px 0" }}>
+        <div style={{ fontSize: 9, color: "#444", letterSpacing: 2, marginBottom: 8 }}>{foot.toUpperCase()} FOOT</div>
+        <div style={{ fontSize: 20, color, fontWeight: 900 }}>{Math.round((p?.ratio || 0) * 100)}%</div>
+        <div style={{ fontSize: 9, color: "#333" }}>1 session logged</div>
+      </div>
+    );
+  }
+
+  const pw = maxW / (points.length - 1);
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${i * pw} ${h - p.ratio * h}`).join(" ");
+  const fillD = `${pathD} L ${(points.length-1)*pw} ${h} L 0 ${h} Z`;
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: "#444", letterSpacing: 2, marginBottom: 8 }}>{foot.toUpperCase()} FOOT ACCURACY TREND</div>
+      <svg width="100%" viewBox={`0 0 ${maxW} ${h + 20}`} style={{ overflow: "visible" }}>
+        {/* Grid lines */}
+        {[0.25, 0.5, 0.75, 1].map(v => (
+          <g key={v}>
+            <line x1="0" y1={h - v*h} x2={maxW} y2={h - v*h} stroke="#141414" strokeWidth="1" />
+            <text x="-4" y={h - v*h + 4} fontSize="7" fill="#333" textAnchor="end">{Math.round(v*100)}%</text>
+          </g>
+        ))}
+        {/* Fill */}
+        <path d={fillD} fill={`${color}11`} />
+        {/* Line */}
+        <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" />
+        {/* Points */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={i * pw} cy={h - p.ratio * h} r="3" fill={color} />
+            <text x={i * pw} y={h + 14} fontSize="7" fill="#333" textAnchor="middle">{p.date.slice(5)}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function ShotCounter({ userId }) {
+  const [tab, setTab] = useState("counter");
+  const [sessionId, setSessionId] = useState(null);
+  const [sessionDate] = useState(new Date().toISOString().slice(0, 10));
+
+  // Setup state
+  const [angle, setAngle] = useState("Center");
+  const [distance, setDistance] = useState("Mid");
+  const [foot, setFoot] = useState("Right");
+  const [targetShots, setTargetShots] = useState(10);
+  const [spotActive, setSpotActive] = useState(false);
+
+  // Current spot tracking
+  const [makes, setMakes] = useState(0);
+  const [misses, setMisses] = useState(0);
+
+  // Session data
+  const [sessionSpots, setSessionSpots] = useState({});
+  const [allSessions, setAllSessions] = useState([]);
+  const [allSpots, setAllSpots] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  const total = makes + misses;
+  const ratio = total > 0 ? makes / total : null;
+
+  useEffect(() => {
+    loadHistory();
+  }, [userId]);
+
+  const loadHistory = async () => {
+    const { data } = await sb.from("shot_logs").select("*").eq("user_id", userId).order("session_date", { ascending: true });
+    setAllSessions(data || []);
+
+    // Build aggregated spot map
+    const agg = {};
+    (data || []).forEach(s => {
+      const k = SPOT_KEY(s.angle, s.distance, s.foot);
+      if (!agg[k]) agg[k] = { makes: 0, total: 0 };
+      agg[k].makes += s.makes;
+      agg[k].total += s.total;
+    });
+    setAllSpots(agg);
+    setLoading(false);
+  };
+
+  const startSpot = () => {
+    setMakes(0);
+    setMisses(0);
+    setSpotActive(true);
+  };
+
+  const recordShot = async (hit) => {
+    const newMakes = hit ? makes + 1 : makes;
+    const newMisses = hit ? misses : misses + 1;
+    const newTotal = newMakes + newMisses;
+    if (hit) setMakes(newMakes); else setMisses(newMisses);
+
+    if (newTotal >= targetShots) {
+      // Save spot
+      await saveSpot(newMakes, newTotal);
+    }
+  };
+
+  const saveSpot = async (m, t) => {
+    const row = {
+      user_id: userId,
+      session_date: sessionDate,
+      angle, distance, foot,
+      makes: m, total: t,
+      ratio: t > 0 ? m / t : 0,
+    };
+    await sb.from("shot_logs").insert([row]);
+
+    const key = SPOT_KEY(angle, distance, foot);
+    setSessionSpots(prev => ({ ...prev, [key]: { makes: m, total: t } }));
+
+    // Update aggregated
+    setAllSpots(prev => {
+      const existing = prev[key] || { makes: 0, total: 0 };
+      return { ...prev, [key]: { makes: existing.makes + m, total: existing.total + t } };
+    });
+    setAllSessions(prev => [...prev, row]);
+    setSpotActive(false);
+    setMakes(0);
+    setMisses(0);
+  };
+
+  const forceFinish = async () => {
+    if (total > 0) await saveSpot(makes, total);
+    else setSpotActive(false);
+  };
+
+  const sessionRightSessions = allSessions.filter(s => s.session_date === sessionDate);
+
+  const btnBase = {
+    border: "none", cursor: "pointer", fontFamily: "'Courier New', monospace",
+    fontWeight: 900, letterSpacing: 2, transition: "all 0.1s",
+  };
+
+  const tabs = [
+    { id: "counter", label: "Counter" },
+    { id: "session", label: "Session" },
+    { id: "history", label: "All Time" },
+  ];
+
+  return (
+    <div>
+      <div className="page-padding" style={{ padding: "32px 32px 0" }}>
+        <div style={{ fontSize: 10, letterSpacing: 6, color: "#333", marginBottom: 8 }}>TRACK EVERY SHOT</div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 20 }}>SHOT <span style={{ color: "#00FF87" }}>COUNTER</span></div>
+
+        <div style={{ display: "flex", borderBottom: "1px solid #141414", marginBottom: 0 }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: "10px 20px", background: "transparent", border: "none",
+              borderBottom: tab === t.id ? "2px solid #00FF87" : "2px solid transparent",
+              color: tab === t.id ? "#00FF87" : "#444", cursor: "pointer",
+              fontSize: 11, letterSpacing: 3, fontFamily: "'Courier New', monospace",
+              marginBottom: -1,
+            }}>{t.label.toUpperCase()}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── COUNTER TAB ── */}
+      {tab === "counter" && (
+        <div className="page-padding" style={{ padding: "24px 32px 40px" }}>
+          {!spotActive ? (
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: 3, color: "#555", marginBottom: 16 }}>SET UP YOUR SPOT</div>
+
+              {/* Angle */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 8 }}>ANGLE</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {ANGLES.map(a => (
+                    <button key={a} onClick={() => setAngle(a)} style={{
+                      ...btnBase, flex: 1, padding: "10px 0",
+                      background: angle === a ? "#00FF87" : "#0d0d0d",
+                      color: angle === a ? "#000" : "#444",
+                      border: `1px solid ${angle === a ? "#00FF87" : "#1a1a1a"}`,
+                      fontSize: 11,
+                    }}>{a.toUpperCase()}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Distance */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 8 }}>DISTANCE</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {DISTANCES.map(d => (
+                    <button key={d} onClick={() => setDistance(d)} style={{
+                      ...btnBase, flex: 1, padding: "10px 0",
+                      background: distance === d ? "#00BFFF" : "#0d0d0d",
+                      color: distance === d ? "#000" : "#444",
+                      border: `1px solid ${distance === d ? "#00BFFF" : "#1a1a1a"}`,
+                      fontSize: 11,
+                    }}>{d.toUpperCase()}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Foot */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 8 }}>FOOT</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {FEET.map(f => (
+                    <button key={f} onClick={() => setFoot(f)} style={{
+                      ...btnBase, flex: 1, padding: "10px 0",
+                      background: foot === f ? (f === "Right" ? "#00FF87" : "#00BFFF") : "#0d0d0d",
+                      color: foot === f ? "#000" : "#444",
+                      border: `1px solid ${foot === f ? (f === "Right" ? "#00FF87" : "#00BFFF") : "#1a1a1a"}`,
+                      fontSize: 11,
+                    }}>{f.toUpperCase()}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Target shots */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 8 }}>SHOTS FROM THIS SPOT</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {[5, 10, 15, 20].map(n => (
+                    <button key={n} onClick={() => setTargetShots(n)} style={{
+                      ...btnBase, flex: 1, padding: "10px 0",
+                      background: targetShots === n ? "#FFD700" : "#0d0d0d",
+                      color: targetShots === n ? "#000" : "#444",
+                      border: `1px solid ${targetShots === n ? "#FFD700" : "#1a1a1a"}`,
+                      fontSize: 12,
+                    }}>{n}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Current spot preview */}
+              <div style={{ padding: "14px", background: "#0d0d0d", borderLeft: "2px solid #00FF87", marginBottom: 24 }}>
+                <div style={{ fontSize: 10, color: "#555", marginBottom: 4, letterSpacing: 2 }}>SPOT</div>
+                <div style={{ fontSize: 14, color: "#fff", fontWeight: 900, letterSpacing: 2 }}>
+                  {angle.toUpperCase()} · {distance.toUpperCase()} · {foot.toUpperCase()} FOOT · {targetShots} SHOTS
+                </div>
+                {sessionSpots[SPOT_KEY(angle, distance, foot)] && (
+                  <div style={{ fontSize: 10, color: "#FFD700", marginTop: 6 }}>
+                    ⚠ Already logged this spot today
+                  </div>
+                )}
+              </div>
+
+              <button onClick={startSpot} style={{
+                ...btnBase, width: "100%", padding: "16px", fontSize: 13,
+                background: "#00FF87", color: "#000",
+              }}>START SHOOTING</button>
+            </div>
+          ) : (
+            <div>
+              {/* Active shooting */}
+              <div style={{ textAlign: "center", marginBottom: 32 }}>
+                <div style={{ fontSize: 11, color: "#555", letterSpacing: 3, marginBottom: 4 }}>
+                  {angle.toUpperCase()} · {distance.toUpperCase()} · {foot.toUpperCase()} FOOT
+                </div>
+                <div style={{ fontSize: 64, fontWeight: 900, color: ratio !== null ? SPOT_COLORS(ratio) : "#333", lineHeight: 1, marginBottom: 4 }}>
+                  {ratio !== null ? `${Math.round(ratio * 100)}%` : "—"}
+                </div>
+                <div style={{ fontSize: 14, color: "#555" }}>
+                  {makes} made · {misses} missed · {total}/{targetShots}
+                </div>
+                {/* Progress bar */}
+                <div style={{ height: 4, background: "#141414", margin: "16px 0", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min((total / targetShots) * 100, 100)}%`, height: "100%", background: "#00FF87", transition: "width 0.2s", borderRadius: 2 }} />
+                </div>
+              </div>
+
+              {/* BIG BUTTONS */}
+              <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                <button onClick={() => recordShot(true)} style={{
+                  ...btnBase, flex: 1, padding: "36px 0", fontSize: 18,
+                  background: "#00FF8722", color: "#00FF87",
+                  border: "2px solid #00FF87", borderRadius: 4,
+                }}>✓ MAKE</button>
+                <button onClick={() => recordShot(false)} style={{
+                  ...btnBase, flex: 1, padding: "36px 0", fontSize: 18,
+                  background: "#FF444422", color: "#FF4444",
+                  border: "2px solid #FF4444", borderRadius: 4,
+                }}>✗ MISS</button>
+              </div>
+
+              <button onClick={forceFinish} style={{
+                ...btnBase, width: "100%", padding: "12px",
+                background: "transparent", color: "#333",
+                border: "1px solid #1a1a1a", fontSize: 10, letterSpacing: 2,
+              }}>FINISH SPOT EARLY</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SESSION TAB ── */}
+      {tab === "session" && (
+        <div className="page-padding" style={{ padding: "24px 32px 40px" }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#555", marginBottom: 4 }}>TODAY — {sessionDate}</div>
+
+          {Object.keys(sessionSpots).length === 0 ? (
+            <div style={{ fontSize: 12, color: "#2a2a2a", padding: "40px 0", textAlign: "center" }}>
+              No spots logged this session yet.<br />
+              <span style={{ fontSize: 10 }}>Go to Counter and start shooting.</span>
+            </div>
+          ) : (
+            <>
+              {/* Session goal map */}
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 9, letterSpacing: 4, color: "#00FF87", marginBottom: 12 }}>SESSION GOAL MAP</div>
+                <GoalMap spots={sessionSpots} />
+              </div>
+
+              {/* Session breakdown list */}
+              <div style={{ fontSize: 9, letterSpacing: 4, color: "#555", marginBottom: 12 }}>SPOT BREAKDOWN</div>
+              {Object.entries(sessionSpots).map(([key, data]) => {
+                const [ang, dist, ft] = key.split("-");
+                const r = data.total > 0 ? data.makes / data.total : 0;
+                return (
+                  <div key={key} style={{ padding: "12px", background: "#0d0d0d", borderLeft: `2px solid ${SPOT_COLORS(r)}`, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#ccc" }}>{ang} · {dist} · {ft} Foot</div>
+                      <div style={{ fontSize: 10, color: "#444", marginTop: 2 }}>{data.makes} made / {data.total} shots</div>
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: SPOT_COLORS(r) }}>{Math.round(r * 100)}%</div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── ALL TIME TAB ── */}
+      {tab === "history" && (
+        <div className="page-padding" style={{ padding: "24px 32px 40px" }}>
+          {loading ? (
+            <div style={{ fontSize: 12, color: "#333" }}>Loading...</div>
+          ) : allSessions.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#2a2a2a", padding: "40px 0", textAlign: "center" }}>No shot sessions logged yet.</div>
+          ) : (
+            <>
+              {/* Overall stats */}
+              <div className="grid-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 24 }}>
+                {[
+                  { label: "Total Shots", value: allSessions.reduce((a, s) => a + s.total, 0), color: "#00FF87" },
+                  { label: "Total Makes", value: allSessions.reduce((a, s) => a + s.makes, 0), color: "#00BFFF" },
+                  { label: "Overall %", value: (() => { const t = allSessions.reduce((a,s) => a+s.total,0); const m = allSessions.reduce((a,s) => a+s.makes,0); return t > 0 ? Math.round(m/t*100)+"%" : "—"; })(), color: "#FFD700" },
+                ].map((s, i) => (
+                  <div key={i} style={{ padding: "14px 10px", background: "#0d0d0d", borderLeft: `2px solid ${s.color}` }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 8, color: "#444", marginTop: 3, letterSpacing: 1 }}>{s.label.toUpperCase()}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Aggregated goal map */}
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 9, letterSpacing: 4, color: "#00FF87", marginBottom: 12 }}>ALL-TIME GOAL MAP</div>
+                <GoalMap spots={allSpots} />
+              </div>
+
+              {/* Accuracy graphs */}
+              <div style={{ fontSize: 9, letterSpacing: 4, color: "#555", marginBottom: 16 }}>ACCURACY OVER TIME</div>
+              <div style={{ marginBottom: 24, padding: "16px", background: "#0d0d0d", border: "1px solid #141414" }}>
+                <AccuracyGraph sessions={allSessions} foot="Right" />
+              </div>
+              <div style={{ padding: "16px", background: "#0d0d0d", border: "1px solid #141414" }}>
+                <AccuracyGraph sessions={allSessions} foot="Left" />
+              </div>
+            </>
           )}
         </div>
       )}
